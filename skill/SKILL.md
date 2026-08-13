@@ -5,7 +5,7 @@ description: Frame screenshots and screen recordings with the `frames` CLI. Use 
 
 # Apple Frames CLI
 
-`frames` 1.3.1 is a single-file Python CLI that applies Apple device bezels to screenshots and videos, auto-detects devices from input dimensions, applies masks when needed, and can merge multiple framed results. Video support uses external `ffmpeg` 5.1+ and `ffprobe` 5.1+ with no extra Python media stack.
+`frames` 1.3.2 is a single-file Python CLI that applies Apple device bezels to screenshots and videos, auto-detects devices from input dimensions, applies masks when needed, and can merge multiple framed results. Video support uses external `ffmpeg` 5.1+ and `ffprobe` 5.1+ with no extra Python media stack.
 
 ## What Agents Should Know
 
@@ -202,7 +202,7 @@ Setup behavior:
 
 ## Current Supported Device Families
 
-The current v4 asset bundle used by `frames` 1.3.1 includes these primary families:
+The current v4 asset bundle used by `frames` 1.3.2 includes these primary families:
 
 - iPhone: iPhone 17, iPhone 17 Pro, iPhone 17 Pro Max, iPhone Air, iPhone 16, iPhone 16 Plus, iPhone 12-13 Pro, iPhone 12-13 Pro Max, iPhone 12-13 mini, iPhone 8 / 2020 SE
 - iPad: iPad mini 2021, iPad 2021, iPad Air 2020, iPad Pro 2018-2021 11-inch, iPad Pro 2018-2021 12.9-inch, iPad Pro 2024 11-inch, iPad Pro 2024 13-inch

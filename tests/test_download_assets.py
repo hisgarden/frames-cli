@@ -1,5 +1,6 @@
 import importlib.machinery
 import importlib.util
+import io
 import shutil
 import ssl
 import tempfile
@@ -344,6 +345,56 @@ class VideoHelperTests(unittest.TestCase):
         self.assertEqual(info["audio_codec"], "aac")
         self.assertEqual(info["color"], "Silver")
         self.assertEqual(info["frame_size"], "1350x2760")
+
+    def test_cmd_video_info_prints_rotation_details(self):
+        args = Namespace(
+            assets="/tmp/assets",
+            color=None,
+            colors=None,
+            device=None,
+            files=["demo.mp4"],
+            json=False,
+            rotate="counterclockwise",
+            verbose=False,
+        )
+        info = {
+            "name": "demo.mp4",
+            "width": 2360,
+            "height": 1640,
+            "duration": 5.5,
+            "codec": "hevc",
+            "audio": False,
+            "rotation": "counterclockwise",
+            "source_dimensions": "1640x2360",
+            "dimensions": "2360x1640",
+            "device": "iPad Air 2020 Landscape",
+            "is_variant": False,
+            "frame_size": "2640x1920",
+            "padded": False,
+            "color": "Silver",
+            "resize_width": None,
+            "has_mask": False,
+        }
+
+        output = io.StringIO()
+        with (
+            mock.patch.object(frames, "require_ffmpeg_tools"),
+            mock.patch.object(frames, "load_json", return_value={}),
+            mock.patch.object(frames, "load_config", return_value={}),
+            mock.patch.object(frames, "build_device_name_index", return_value={}),
+            mock.patch.object(frames, "_gather_video_paths", return_value=[Path("demo.mp4")]),
+            mock.patch.object(frames, "_video_info_for_path", return_value=info),
+            mock.patch.object(frames.C, "enabled", False),
+            mock.patch("sys.stdout", output),
+        ):
+            frames.cmd_video_info(args)
+
+        text = output.getvalue()
+        rotation = "Rotated: 1640x2360 → 2360x1640 (counterclockwise)"
+        matched = "✓ iPad Air 2020 Landscape"
+        self.assertIn(rotation, text)
+        self.assertIn(matched, text)
+        self.assertLess(text.index(rotation), text.index(matched))
 
     def test_background_color_rejects_invalid_hex(self):
         self.assertEqual(frames._background_color("#f5f5f5"), "0xf5f5f5")

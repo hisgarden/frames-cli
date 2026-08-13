@@ -34,7 +34,7 @@ except ImportError:
 
 warnings.simplefilter("error", Image.DecompressionBombWarning)
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 APP_NAME = "frames"
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "frames"
@@ -2705,7 +2705,7 @@ def cmd_video_info(args):
         audio = f", audio: {r['audio_codec']}" if r.get("audio") else ", no audio"
         print(f"  {C.dim(dims)} {C.dim('•')} {duration} {C.dim('•')} {r.get('codec') or 'unknown codec'}{audio}")
         if r.get("rotation") and r["rotation"] != "none":
-            print(f"    {C.dim('Rotated:')} {r['source_dimensions']} {C.dim('→')} {r['dimensions']} {C.dim(f'({r["rotation"]})')}")
+            print(f"    {C.dim('Rotated:')} {r['source_dimensions']} {C.dim('→')} {r['dimensions']} {C.dim('(' + r['rotation'] + ')')}")
         print(f"  {C.green('✓')} {C.bold(r['device'])}")
         if r.get("is_variant"):
             print(f"    {C.dim('Primary match:')} {r['primary_match']} {C.dim('→ variant resolved')}")
