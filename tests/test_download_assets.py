@@ -69,11 +69,9 @@ class DownloadAssetsTests(unittest.TestCase):
             ssl.SSLCertVerificationError("certificate verify failed")
         )
 
-        with (
-            mock.patch("urllib.request.urlretrieve", side_effect=ssl_error),
-            mock.patch.object(frames.shutil, "which", return_value="/usr/bin/curl"),
-            mock.patch.object(frames, "_download_with_curl", side_effect=self._copy_zip_for_curl) as curl_download,
-        ):
+        with mock.patch("urllib.request.urlretrieve", side_effect=ssl_error), \
+             mock.patch.object(frames.shutil, "which", return_value="/usr/bin/curl"), \
+             mock.patch.object(frames, "_download_with_curl", side_effect=self._copy_zip_for_curl) as curl_download:
             ok = frames.download_assets(self.dest_dir)
 
         self.assertTrue(ok)
@@ -83,10 +81,8 @@ class DownloadAssetsTests(unittest.TestCase):
     def test_download_assets_does_not_fallback_for_non_ssl_errors(self):
         network_error = urllib.error.URLError("temporary failure in name resolution")
 
-        with (
-            mock.patch("urllib.request.urlretrieve", side_effect=network_error),
-            mock.patch.object(frames, "_download_with_curl") as curl_download,
-        ):
+        with mock.patch("urllib.request.urlretrieve", side_effect=network_error), \
+             mock.patch.object(frames, "_download_with_curl") as curl_download:
             ok = frames.download_assets(self.dest_dir)
 
         self.assertFalse(ok)
@@ -149,44 +145,28 @@ class VideoHelperTests(unittest.TestCase):
         self.assertIn("Missing required video tool(s): ffmpeg", str(cm.exception))
         self.assertIn("on PATH", str(cm.exception))
 
-    def test_require_ffmpeg_tools_rejects_old_ffmpeg_version(self):
-        def fake_run(cmd, text, capture_output, check):
-            tool = cmd[0]
-            version = "4.4" if tool == "ffmpeg" else "8.1"
-            return self._version_process(tool, version)
+    def test_require_ffmpeg_tools_rejects_old_versions(self):
+        for outdated_tool in ("ffmpeg", "ffprobe"):
+            with self.subTest(tool=outdated_tool):
+                def fake_run(cmd, text, capture_output, check):
+                    tool = cmd[0]
+                    version = "4.4" if tool == outdated_tool else "8.1"
+                    return self._version_process(tool, version)
 
-        with (
-            mock.patch.object(frames.shutil, "which", return_value="/usr/bin/tool"),
-            mock.patch.object(frames.subprocess, "run", side_effect=fake_run),
-        ):
-            with self.assertRaises(RuntimeError) as cm:
-                frames.require_ffmpeg_tools()
+                with mock.patch.object(frames.shutil, "which", return_value="/usr/bin/tool"), \
+                     mock.patch.object(frames.subprocess, "run", side_effect=fake_run):
+                    with self.assertRaises(RuntimeError) as cm:
+                        frames.require_ffmpeg_tools()
 
-        self.assertIn("ffmpeg 5.1+ is required", str(cm.exception))
-        self.assertIn("found 4.4", str(cm.exception))
-
-    def test_require_ffmpeg_tools_rejects_old_ffprobe_version(self):
-        def fake_run(cmd, text, capture_output, check):
-            tool = cmd[0]
-            version = "8.1" if tool == "ffmpeg" else "4.4"
-            return self._version_process(tool, version)
-
-        with (
-            mock.patch.object(frames.shutil, "which", return_value="/usr/bin/tool"),
-            mock.patch.object(frames.subprocess, "run", side_effect=fake_run),
-        ):
-            with self.assertRaises(RuntimeError) as cm:
-                frames.require_ffmpeg_tools()
-
-        self.assertIn("ffprobe 5.1+ is required", str(cm.exception))
-        self.assertIn("found 4.4", str(cm.exception))
+                self.assertIn(f"{outdated_tool} 5.1+ is required", str(cm.exception))
+                self.assertIn("found 4.4", str(cm.exception))
 
     def test_ffmpeg_progress_cmd_enables_machine_progress(self):
         cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", "in.mp4", "out.mp4"]
         progress_cmd = frames._ffmpeg_progress_cmd(cmd)
 
         self.assertEqual(progress_cmd[:4], ["ffmpeg", "-progress", "pipe:1", "-nostats"])
-        self.assertIn("-hide_banner", progress_cmd)
+        self.assertEqual(progress_cmd[4:], cmd[1:])
 
     def test_progress_time_formats_short_and_long_durations(self):
         self.assertEqual(frames._format_progress_time(0.5), "0.5s")
@@ -195,10 +175,8 @@ class VideoHelperTests(unittest.TestCase):
 
     def test_run_ffmpeg_non_tty_uses_single_captured_run(self):
         completed = frames.subprocess.CompletedProcess(["ffmpeg"], 0, stdout="", stderr="")
-        with (
-            mock.patch.object(frames.sys.stdout, "isatty", return_value=False),
-            mock.patch.object(frames.subprocess, "run", return_value=completed) as run,
-        ):
+        with mock.patch.object(frames.sys.stdout, "isatty", return_value=False), \
+             mock.patch.object(frames.subprocess, "run", return_value=completed) as run:
             result = frames._run_ffmpeg(["ffmpeg", "-version"], progress_label="Framing demo.mp4", progress_total=10)
 
         self.assertEqual(result.returncode, 0)
@@ -377,16 +355,14 @@ class VideoHelperTests(unittest.TestCase):
         }
 
         output = io.StringIO()
-        with (
-            mock.patch.object(frames, "require_ffmpeg_tools"),
-            mock.patch.object(frames, "load_json", return_value={}),
-            mock.patch.object(frames, "load_config", return_value={}),
-            mock.patch.object(frames, "build_device_name_index", return_value={}),
-            mock.patch.object(frames, "_gather_video_paths", return_value=[Path("demo.mp4")]),
-            mock.patch.object(frames, "_video_info_for_path", return_value=info),
-            mock.patch.object(frames.C, "enabled", False),
-            mock.patch("sys.stdout", output),
-        ):
+        with mock.patch.object(frames, "require_ffmpeg_tools"), \
+             mock.patch.object(frames, "load_json", return_value={}), \
+             mock.patch.object(frames, "load_config", return_value={}), \
+             mock.patch.object(frames, "build_device_name_index", return_value={}), \
+             mock.patch.object(frames, "_gather_video_paths", return_value=[Path("demo.mp4")]), \
+             mock.patch.object(frames, "_video_info_for_path", return_value=info), \
+             mock.patch.object(frames.C, "enabled", False), \
+             mock.patch("sys.stdout", output):
             frames.cmd_video_info(args)
 
         text = output.getvalue()
@@ -457,10 +433,8 @@ class VideoHelperTests(unittest.TestCase):
     def test_video_presets_drive_hardware_bitrates(self):
         args = Namespace(alpha=False, codec="h264", background="white", preset="compact", quality=None)
 
-        with (
-            mock.patch.object(frames.sys, "platform", "darwin"),
-            mock.patch.object(frames.shutil, "which", return_value="/usr/bin/ffmpeg"),
-        ):
+        with mock.patch.object(frames.sys, "platform", "darwin"), \
+             mock.patch.object(frames.shutil, "which", return_value="/usr/bin/ffmpeg"):
             enc_args, used_hw = frames._encoder_args(args)
 
         self.assertTrue(used_hw)
@@ -511,15 +485,23 @@ class VideoHelperTests(unittest.TestCase):
         )
         items = [
             {
-                "temp_path": Path("/tmp/framed_0.mov"),
-                "video_meta": {"duration": 1.0, "audio": False},
-                "frame_meta": {"frame_width": 1350, "frame_height": 2760, "physicalHeight": 149.6},
+                "src": Path("/tmp/source_0.mov"),
+                "video_meta": {"duration": 1.0, "audio": False, "fps_rate": "30/1"},
+                "frame_meta": {
+                    "frame_width": 1350, "frame_height": 2760, "physicalHeight": 149.6,
+                    "mask_path": None, "frame_path": "/tmp/frame.png",
+                    "resize_width": None, "resize_height": None, "x": 0, "y": 0,
+                },
                 "info": {},
             },
             {
-                "temp_path": Path("/tmp/framed_1.mov"),
-                "video_meta": {"duration": 1.0, "audio": False},
-                "frame_meta": {"frame_width": 1350, "frame_height": 2760, "physicalHeight": 149.6},
+                "src": Path("/tmp/source_1.mov"),
+                "video_meta": {"duration": 1.0, "audio": False, "fps_rate": "30/1"},
+                "frame_meta": {
+                    "frame_width": 1350, "frame_height": 2760, "physicalHeight": 149.6,
+                    "mask_path": None, "frame_path": "/tmp/frame.png",
+                    "resize_width": None, "resize_height": None, "x": 0, "y": 0,
+                },
                 "info": {},
             },
         ]
@@ -611,6 +593,7 @@ class VideoHelperTests(unittest.TestCase):
             "fps": 60.0,
         }
 
+        source_meta = meta.copy()
         rotated = frames._rotated_video_meta(meta, "counterclockwise")
 
         self.assertEqual(rotated["width"], 2360)
@@ -618,6 +601,7 @@ class VideoHelperTests(unittest.TestCase):
         self.assertEqual(rotated["source_dimensions"], "1640x2360")
         self.assertEqual(rotated["rotation"], "counterclockwise")
         self.assertEqual(rotated["duration"], 21.665)
+        self.assertEqual(meta, source_meta)
 
     def test_180_rotation_keeps_dimensions(self):
         meta = {"width": 1640, "height": 2360}

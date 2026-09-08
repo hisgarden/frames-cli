@@ -2,6 +2,8 @@
 
 Frame device screenshots and screen recordings with Apple product bezels from the command line. Auto-detects devices, supports colors, merging, and batch processing. Based on the Apple Frames shortcut by me for MacStories.net, not affiliated with Apple.
 
+[Read the changelog](CHANGELOG.md) for release details.
+
 ---
 
 ## Installation
@@ -63,7 +65,7 @@ Then restart your terminal or run `source ~/.zshrc`.
 
 ### Setup
 
-The CLI will automatically detect and download Apple Frames 4 assets on first run. Setup also checks video requirements and, on macOS, can install ffmpeg for you with Homebrew if it is missing. You can also set up manually:
+The CLI offers to download Apple Frames 4 assets when a command needs them and you run it interactively. Setup also checks video requirements and, on macOS, can install ffmpeg for you with Homebrew if it is missing. You can also set up manually:
 
 ```bash
 # Guided download (interactive — downloads ~40 MB from cdn.macstories.net)
@@ -104,6 +106,9 @@ frames video recording.mp4
 frames video --preset compact recording.mp4
 frames video --preset balanced recording.mp4
 frames video --preset best recording.mp4
+
+# Tip: export compressed video with transparency on macOS
+frames video --codec hevc-alpha recording.mp4
 
 # Tip: inspect the video match before spending time rendering
 frames --json video-info recording.mp4
@@ -195,17 +200,27 @@ frames video -m --background transparent 1.mp4 2.mp4
 
 Video support requires `ffmpeg` 5.1+ and `ffprobe` 5.1+. `frames setup` checks for both and can install ffmpeg with Homebrew on macOS. Supported input extensions are `.mp4`, `.mov`, and `.m4v`.
 
-Single-video output is `originalname_framed.mp4` by default, or `.mov` for `--alpha`, `--codec prores`, or `--background transparent`. Audio is preserved unless `--strip-audio` is passed.
+Single-video output is `originalname_framed.mp4` by default, or `.mov` for `--alpha`, `--codec prores`, `--codec hevc-alpha`, or `--background transparent`. Audio is preserved unless `--strip-audio` is passed.
+
+When framing several videos individually, Frames rejects output paths that would overwrite another input or share a name with another output before rendering. Use a separate output directory, or distinct source filenames if outputs would share a name.
+
+The canvas outside the device bezel is white by default, or transparent with `--alpha` or `--codec hevc-alpha`. Use `--background white`, `--background black`, or a hex color such as `--background "#f5f5f5"` to choose an opaque background. An explicit background applies to the entire canvas, including any padding.
 
 Some iPad screen recordings are visually landscape but encoded as portrait video frames. In that case, inspect with `frames --json video-info recording.mp4`; if the match is portrait while the content is landscape, pass `--rotate counterclockwise` or `--rotate clockwise` so Frames rotates before device detection and framing.
 
-Use `--alpha` or `--background transparent` to create transparent ProRes 4444 `.mov` output. This works for single videos and merged videos. `--alpha` defaults the canvas to transparent unless you explicitly pass another `--background`; MP4/H.264 and MP4/HEVC outputs do not support alpha. If you pass an explicit output file for transparent output, it must use a `.mov` extension.
+Use `--alpha` or `--background transparent` to create transparent ProRes 4444 `.mov` output unless you explicitly select `--codec hevc-alpha`. This works for single videos and merged videos. `--alpha --codec hevc` still selects ProRes; `--codec hevc` alone remains opaque HEVC MP4. If you pass an explicit output file for ProRes or HEVC-alpha, it must use a `.mov` extension.
 
-Interactive video renders show a live progress bar. JSON and non-interactive runs stay quiet for scripting. Completed video exports report output size and source-vs-output savings in both human output and JSON.
+ProRes 4444 preserves transparency for editing and compositing, but its files can be much larger than the source MP4. Use `--codec hevc-alpha` for compressed transparent delivery to compatible Apple apps and devices. Support varies by app; use ProRes when your editing workflow requires it. Use an opaque MP4 export when you only need a different background color. Presets do not reduce ProRes file sizes.
 
-Video presets tune MP4 export size and quality. `best` is the default. `balanced` and `compact` lower H.264/HEVC bitrate for hardware encoding and use higher CRF values for software encoding. `--quality N` remains an expert CRF override for software encoders only; lower is higher quality.
+HEVC-alpha requires macOS and an ffmpeg build with VideoToolbox HEVC alpha support. Frames checks encoder support before rendering and reports an error if it is unavailable; it never silently switches to opaque HEVC or ProRes. Rotation, per-input colors, device masks, single exports, and both merge playback modes are supported. Audio follows the existing rules below.
 
-For MP4/H.264 and MP4/HEVC output, Frames pads odd-sized Apple frame assets to even encoded dimensions instead of letting ffmpeg silently crop a row or column. JSON output reports `output_dimensions` and `padded` when this happens.
+HEVC stores transparency in an auxiliary layer. `ffprobe` may report `yuv420p` without exposing that alpha layer. Verify transparency with a compatible native Apple decoder; the optional regression test uses AVFoundation.
+
+Interactive video renders show a live progress bar. The live progress bar is disabled for JSON and non-interactive runs. Completed video exports report output size and source-vs-output savings in both human output and JSON.
+
+Video presets tune export size and quality. `best` is the default. For MP4, `balanced` and `compact` lower H.264/HEVC bitrate for hardware encoding and use higher CRF values for software encoding. `--quality N` remains an expert CRF override for software MP4 encoders only; lower is higher quality. For HEVC-alpha, `compact`, `balanced`, and `best` target 4, 7, and 10 Mbps respectively; these are bitrate targets, not file-size guarantees. HEVC-alpha rejects `--quality`; use `--preset` instead.
+
+For MP4/H.264, MP4/HEVC, and HEVC-alpha MOV output, Frames pads odd dimensions to even encoded dimensions so the encoder preserves the full frame and, where supported, transparency. Single-video JSON reports the encoded `output_dimensions` and whether it was `padded`. In HEVC-alpha merges, per-input `output_dimensions` describe the raw device frame before physical scaling, with `padded: false`; only the final canvas is padded as needed, and the top-level `dimensions` report its encoded size.
 
 Common video recipes:
 
@@ -221,6 +236,8 @@ Common video recipes:
 | Merge videos simultaneously | `frames video -m 1.mp4 2.mp4` |
 | Play merged videos left to right | `frames video -m --playback-offset 1.mp4 2.mp4` |
 | Assign per-input colors | `frames video --colors "Silver,random" 1.mp4 2.mp4` |
+| Compressed transparent HEVC MOV (macOS) | `frames video --codec hevc-alpha recording.mp4` |
+| Transparent HEVC merge (macOS) | `frames video -m --codec hevc-alpha 1.mp4 2.mp4` |
 | Transparent ProRes MOV | `frames video --alpha recording.mp4` |
 | Transparent merged ProRes MOV | `frames video -m --alpha 1.mp4 2.mp4` |
 | Transparent merged canvas | `frames video -m --background transparent 1.mp4 2.mp4` |
@@ -232,6 +249,12 @@ frames video --alpha recording.mp4
 # Transparent merged ProRes MOV
 frames video -m --alpha 1.mp4 2.mp4
 frames video -m --background transparent 1.mp4 2.mp4
+
+# Compressed transparent HEVC MOV (macOS)
+frames video --codec hevc-alpha --preset compact recording.mp4
+
+# Transparent HEVC merge with sequential playback (macOS)
+frames video -m --playback-offset --codec hevc-alpha 1.mp4 2.mp4
 
 # HEVC output
 frames video --codec hevc recording.mp4
@@ -262,9 +285,9 @@ Use `--playback-offset` to play videos one at a time from left to right. Inactiv
 frames video -m --playback-offset 1.mp4 2.mp4
 ```
 
-With `--playback-offset`, audio is concatenated sequentially and videos without audio contribute silence. Simultaneous video merges omit mixed audio in this version.
+With `--playback-offset`, audio is concatenated sequentially and videos without audio contribute silence, unless `--strip-audio` is passed. Simultaneous video merges omit mixed audio in this version.
 
-Transparent merges output `.mov` using ProRes 4444 with `yuva444p10le` pixels. Use this when you want the merged devices floating over transparency for Final Cut Pro, Keynote, or another compositor.
+Transparent merges use ProRes 4444 MOV with `yuva444p10le` pixels by default, or compressed HEVC-alpha MOV with `--codec hevc-alpha` on macOS. Both support simultaneous and sequential playback. Choose a format supported by the app where you will use the merged devices over transparency.
 
 ---
 
@@ -280,9 +303,9 @@ frames --json video-info --colors "Silver,random" 1.mp4 2.mp4
 
 `video-info` uses the same device, variant, color, ffmpeg, and ffprobe checks as `frames video`. It reports dimensions, duration, fps, codec, audio state, matched device, selected color, frame size, mask state, and resize metadata.
 
-`frames video --preset compact|balanced|best` controls MP4 export size/quality. `best` is the default. Presets affect H.264 and HEVC bitrate for hardware encoders and CRF for software encoders; ProRes/alpha output keeps ProRes settings. `--quality N` is still available as a software CRF override.
+`video-info` inspects the source and frame match; it does not select an output codec. Its output geometry assumes the default MP4 export. For rendered-video presets and transparency options, see `video` above.
 
-`frames video --alpha ...` and `frames video --background transparent ...` return transparent ProRes `.mov` output. In JSON, `alpha` is `true` and `background` is `transparent` unless an explicit opaque background is provided.
+Rendered-video JSON includes `output_codec` (`h264`, `hevc`, `prores`, or `hevc-alpha`) for single exports, merged output, and each merged input. The existing per-input `codec` field still describes the source. `alpha` indicates an alpha-capable output format; `background` reports `transparent` or the explicit opaque background.
 
 `frames --json video ...` returns the selected `preset` plus `output_size_bytes`, `output_size`, `source_size_bytes`, `source_size`, `savings_bytes`, `savings`, and `savings_percent` after export. Merged JSON output includes the same top-level size and savings fields.
 
@@ -352,7 +375,7 @@ frames --subfolder mockups *.png
 # saves all to ./mockups/
 ```
 
-To make subfolder mode the default, run `frames setup --subfolder`. To revert, run `frames setup --no-subfolder`.
+To make subfolder mode the default, run `frames setup --subfolder`. To revert, run `frames setup --no-subfolder`. These commands only update the saved setting; they do not download assets or check video tools.
 
 ---
 
@@ -393,7 +416,9 @@ Use `frames list` to see exact device names.
 
 ### `--json`
 
-Output machine-readable JSON instead of human-readable text. Designed for AI agent pipelines and scripting.
+Output machine-readable JSON for `frame`, `video`, `info`, `video-info`, and `doctor`. The `list`, `list-colors`, `colors`, and `setup` commands keep their human-readable or interactive output even with `--json`.
+
+The global options `--json`, `--assets`, `--verbose` (`-v`), and `--no-color` work before or after a command name. For example, `frames --json video-info recording.mp4` and `frames video-info --json recording.mp4` are equivalent.
 
 ```bash
 frames --json screenshot.png
@@ -453,7 +478,7 @@ frames --json info screenshot.png
 
 ### `setup`
 
-Download assets or configure the assets folder path. Without arguments, starts an interactive download from `cdn.macstories.net` (~40 MB). With a path, points the CLI at an existing assets folder.
+Download assets or configure the assets folder path. Without arguments, starts an interactive download from `cdn.macstories.net` (~40 MB). With a path, points the CLI at an existing assets folder. With only `--subfolder` or `--no-subfolder`, updates that setting without starting setup.
 
 ```bash
 # Download assets interactively (first-time setup or re-download)
@@ -467,7 +492,20 @@ frames setup --subfolder /path/to/Frames     # enable subfolder mode by default
 frames setup --no-subfolder /path/to/Frames  # disable subfolder mode (default)
 ```
 
-If assets are missing or outdated when you run any command, the CLI will automatically offer to download them.
+If assets are missing or outdated, commands that need them offer to download them in an interactive terminal. JSON and non-interactive runs fail instead; JSON output includes `setup_required: true`.
+
+---
+
+### `doctor`
+
+Check the configuration file, assets, saved colors, and video tools without changing them. This command also works when the configuration file is malformed.
+
+```bash
+frames doctor
+frames doctor --json
+```
+
+The report lists issues and suggested next steps. In scripts, inspect the JSON `ok` field: `doctor` can exit successfully while reporting `ok: false`.
 
 ---
 
@@ -488,7 +526,7 @@ The `setup` and `colors` commands write to `~/.config/frames/config.json`:
 
 **Assets priority order:** `--assets` flag > `FRAMES_ASSETS` env var > config file > default iCloud Shortcuts path.
 
-**Color priority order:** `--color` flag > config default (set via `colors` command) > first color in device list.
+**Color priority order:** `--colors` per-input value > `--color` flag > config default (set via `colors` command) > first color in device list.
 
 The `FRAMES_ASSETS` environment variable takes precedence over the config file and is useful for CI or non-standard setups:
 
@@ -500,7 +538,7 @@ FRAMES_ASSETS=/path/to/assets frames screenshot.png
 
 ## For AI Agents
 
-The `--json` flag makes `frames` pipeline-friendly. All output goes to stdout; errors go to stderr.
+For commands that support `--json`, successful results go to stdout. Verbose diagnostics and clipboard status go to stderr. Errors can appear on stderr or as JSON with an `error` field on stdout, so check both the exit status and error fields.
 
 ```bash
 # Frame a screenshot, capture the output path
@@ -549,6 +587,18 @@ frames -f ~/screenshots/*.png
 | Apple Watch | Ultra 3, Ultra 2024, Series 11, Series 10, Series 7 | Including band combinations |
 
 Watch Ultra 3 supports 13 case + band combinations. Watch Series 11 supports 22 case + band combinations per size. All devices that have landscape variants support both orientations.
+
+---
+
+## Development
+
+From a repository checkout with Pillow installed, run the test suite:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The video rendering tests also need `ffmpeg` and `ffprobe`; they are skipped when either tool is missing. Tests create temporary inputs and assets. The optional native HEVC-alpha test also requires macOS, a working `swiftc`, and ffmpeg HEVC alpha support. It skips when prerequisites are unavailable; otherwise, failures fail the suite. It decodes exports through AVFoundation to check transparency, masks, geometry, and opaque backgrounds.
 
 ---
 
