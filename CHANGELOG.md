@@ -1,5 +1,82 @@
 # Changelog
 
+## 1.4.1 — 2026-09-10
+
+Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.4.1 adds **experimental iPhone Duo support** using Apple's official artwork and published display resolutions. Developers can test both displays in both orientations, choose either finish, and show the outer screen alone or beside the phone's back.
+
+### Install the separate Duo pack
+
+Duo requires **Frames 1.4.1 or later plus the new asset pack**. Updating the CLI alone does not install the artwork. The standard `frames setup` download remains AppleFrames401.zip, so existing users keep their current setup unless they select the Duo pack.
+
+1. Update Frames using your existing [installation method](README.md#installation), then check `frames --version`.
+2. Download [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB) and extract it.
+3. Select the enclosed `Frames-Duo-Experimental` folder with `--assets` for one command, or save it as your default with `frames setup`.
+
+```bash
+# Verify and use the pack without changing your saved default
+frames --assets /path/to/Frames-Duo-Experimental --json doctor
+frames --assets /path/to/Frames-Duo-Experimental --json info duo.png
+frames --assets /path/to/Frames-Duo-Experimental duo.png
+
+# Optional: save the pack as your default
+frames setup /path/to/Frames-Duo-Experimental
+```
+
+The path must identify the **extracted folder**, not the ZIP or CDN URL. The pack includes all existing frames and has 519 PNGs. Its asset format version remains 4. See the [complete Duo guide](docs/iphone-duo-experimental.md) for copyable download commands, checksums, setup verification, and restoring a previous pack.
+
+### Choose the outer-screen view
+
+Once the Duo pack is selected, a **1398 × 2034** input automatically uses the single outer-screen frame. Both examples below use the same screenshot; separate output folders retain both results:
+
+```bash
+# Outer screen only
+frames --device "iPhone Duo Outer Portrait" -o outer-screen outer-portrait.png
+
+# Back of the phone on the left, outer screen on the right
+frames --device "iPhone Duo Outer Open" -o outer-and-back outer-portrait.png
+```
+
+`--device` also works with `frames video` and `frames video-info`. The outer-and-back view is an explicit choice; automatic detection always selects the single-screen view.
+
+### Displays, colors, and videos
+
+| Exact input width × height | Automatic frame |
+| --- | --- |
+| 1398 × 2034 | iPhone Duo Outer Portrait |
+| 2034 × 1398 | iPhone Duo Outer Landscape |
+| 1878 × 2670 | iPhone Duo Inner Portrait |
+| 2670 × 1878 | iPhone Duo Inner Landscape |
+
+All five views support **Night Sky** and **Star White**. Night Sky is the default unless another color preference is saved. Existing merge, batch, output, and video options work with the pack:
+
+```bash
+frames --color "Star White" inner-landscape.png
+frames --merge --colors "Star White,Night Sky" outer-portrait.png inner-landscape.png
+frames --json video-info outer-recording.mp4
+frames video --device "iPhone Duo Outer Open" outer-recording.mp4
+frames video --alpha inner-recording.mp4
+```
+
+Use `--assets /path/to/Frames-Duo-Experimental` with these examples if the pack is not your saved default. Video framing requires ffmpeg 5.1+ and ffprobe 5.1+. Normal video output has an opaque white canvas; `--alpha` produces transparent ProRes MOV.
+
+### Framing and asset changes
+
+- Detection checks both native dimensions, including orientation, instead of accepting a matching width with an unrelated height.
+- Duo image/video metadata reports `experimental: true`. `frames list` labels the installed experimental views and lists the outer-and-back view as a manual choice.
+- Added explicit asset `resizeHeight` support alongside `resizeWidth`. Inner screenshots scale to the larger openings in Apple's supplied artwork; existing entries without an explicit height keep their previous proportional behavior.
+- Screen masks follow the enclosed openings in Apple's PNGs. The asymmetric outer corners, camera, and partly transparent bezel edges are preserved. Frames does not add concept interface controls to screenshots.
+- Added a reproducible asset builder. It preserves existing frame files, checks the expected artwork dimensions, includes provenance and Apple's license, and refuses to overwrite an existing destination.
+- Removed unused descriptive metadata from the ten Duo bezel PNGs and applied lossless compression where smaller. This saves 248,931 bytes (1.82%), with identical decoded RGBA pixels. The complete asset archive is 95,246,128 bytes.
+- Updated the README, agent skill, help, splash, and dedicated Duo guide with installation and view-selection instructions.
+
+### Experimental status and verification
+
+The mappings use Apple's announced resolutions and official artwork. Generated screenshots and recordings verify framing geometry; they do not establish real-device capture behavior, Display Zoom support, or shipping iOS interface placement. Keep native input dimensions and let Frames perform the inner-display scaling.
+
+The release checks include a fresh download from the final CDN URL, matching ZIP checksum and contents, temporary and saved-default asset selection, all five views in both finishes, an existing iPhone frame, image merging, and four Duo test-video exports. All 87 tests pass on Python 3.8 and 3.14, including native HEVC-alpha verification on the verification Mac. The complete CLI, builder, and tests compile under Python 3.8 through 3.14.
+
+[Full comparison with 1.4.0](https://github.com/viticci/frames-cli/compare/1.4.0...1.4.1)
+
 ## 1.4.0 — 2026-09-08
 
 Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.4.0 adds compressed video with transparency through an optional HEVC-alpha export mode on macOS. It also improves video merging, image transparency, output file handling, and scripting reliability.

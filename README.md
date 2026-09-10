@@ -79,6 +79,25 @@ The guided setup downloads the asset pack, extracts it, and saves the path to `~
 
 You can also set the `FRAMES_ASSETS` environment variable instead of using the config file.
 
+### Experimental iPhone Duo support
+
+Frames **1.4.1 or later** supports Duo with a separate, opt-in asset pack. It includes both displays in portrait and landscape, Night Sky and Star White finishes, and a view showing the phone's back beside its outer screen. Updating the CLI alone does not install the pack; normal `frames setup` still downloads AppleFrames401.zip.
+
+Download [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB) and unzip it. The enclosed `Frames-Duo-Experimental` folder contains the existing frames too. Select that folder for an individual command:
+
+```bash
+frames --assets /path/to/Frames-Duo-Experimental -c "Star White" duo.png
+frames --assets /path/to/Frames-Duo-Experimental --json info duo.png
+frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Portrait" outer-portrait.png
+frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Open" outer-portrait.png
+```
+
+The two outer portrait commands use the same **1398 × 2034** screenshot. `Outer Portrait` shows only the screen; `Outer Open` adds the back of the phone beside it. Without `--device`, the single-screen view is selected automatically. The option also works with `frames video`.
+
+To save the pack as your default, run `frames setup /path/to/Frames-Duo-Experimental` once. Detection requires the exact native width **and** height: outer portrait **1398 × 2034**, outer landscape **2034 × 1398**, inner portrait **1878 × 2670**, or inner landscape **2670 × 1878**. These mappings are experimental until real Duo screenshots can be checked.
+
+See the [complete Duo setup and usage guide](docs/iphone-duo-experimental.md) for copyable download commands, verification, both selection methods, colors, videos, restoring your previous pack, and asset provenance.
+
 ---
 
 ## Quick Start
@@ -575,6 +594,7 @@ frames -f ~/screenshots/*.png
 
 | Category | Devices | Notes |
 |----------|---------|-------|
+| iPhone Duo (experimental pack) | Inner and outer displays | Portrait + landscape; optional rear view |
 | iPhone 17 | 17, 17 Pro, 17 Pro Max | Portrait + landscape |
 | iPhone Air | Air | Portrait + landscape |
 | iPhone 16 | 16, 16 Plus, 16 Pro, 16 Pro Max | Portrait + landscape |
@@ -599,6 +619,8 @@ python3 -m unittest discover -s tests -v
 ```
 
 The video rendering tests also need `ffmpeg` and `ffprobe`; they are skipped when either tool is missing. Tests create temporary inputs and assets. The optional native HEVC-alpha test also requires macOS, a working `swiftc`, and ffmpeg HEVC alpha support. It skips when prerequisites are unavailable; otherwise, failures fail the suite. It decodes exports through AVFoundation to check transparency, masks, geometry, and opaque backgrounds.
+
+The Duo tests cover device listing, exact resolution matching, both finishes, the manual rear view, explicit image/video resize dimensions, enclosed screen masks, and metadata removal. They use small synthetic assets; full artwork verification is described in the [Duo guide](docs/iphone-duo-experimental.md).
 
 ---
 

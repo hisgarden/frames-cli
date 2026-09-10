@@ -34,7 +34,7 @@ except ImportError:
 
 warnings.simplefilter("error", Image.DecompressionBombWarning)
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 APP_NAME = "frames"
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "frames"
@@ -532,6 +532,7 @@ def show_splash():
     for command, description in examples:
         print(f"    {C.cyan('frames')} {command:<{width}}  {C.dim(description)}")
     print(f"  More options: {C.cyan('frames frame --help')} | {C.cyan('frames video --help')}")
+    print(f"  Experimental Duo: select its pack with {C.cyan('--assets PATH')}. See README.")
     print()
 
     # Show asset status
@@ -549,6 +550,11 @@ def show_splash():
 # ── Frame Colors Dictionary ──────────────────────────────────────────────────
 
 FRAME_COLORS = {
+    "iPhone Duo Outer Portrait":   ["Night Sky", "Star White"],
+    "iPhone Duo Outer Landscape":  ["Night Sky", "Star White"],
+    "iPhone Duo Inner Portrait":   ["Night Sky", "Star White"],
+    "iPhone Duo Inner Landscape":  ["Night Sky", "Star White"],
+    "iPhone Duo Outer Open":       ["Night Sky", "Star White"],
     "iPhone 17 Pro Portrait":      ["Cosmic Orange", "Deep Blue", "Silver"],
     "iPhone 17 Pro Landscape":     ["Cosmic Orange", "Deep Blue", "Silver"],
     "iPhone 17 Pro Max Portrait":  ["Cosmic Orange", "Deep Blue", "Silver"],
@@ -920,12 +926,12 @@ def frame_screenshot(
     has_colors = entry.get("colors") == "yes"
     color = get_color(model_name, color_arg, user_defaults=user_defaults, strict=strict_color) if has_colors else None
 
-    # 4. Resize (for More Space resolutions)
+    # 4. Resize for an asset whose opening differs from the native screenshot.
     resize_width = entry.get("resizeWidth")
     if resize_width:
         resize_width = int(resize_width)
         ratio = resize_width / img.width
-        new_h = int(img.height * ratio)
+        new_h = int(entry.get("resizeHeight", int(img.height * ratio)))
         img = img.resize((resize_width, new_h), Image.LANCZOS)
         if verbose:
             print(f"  {C.dim('Resized:')} {w}x{h} → {resize_width}x{new_h}", file=sys.stderr)
@@ -971,6 +977,7 @@ def frame_screenshot(
         "mask_missing": mask_missing,
         "physicalHeight": float(entry.get("physicalHeight", 0)),
         "is_variant": is_variant,
+        "experimental": bool(entry.get("experimental", False)),
     }
 
     return result, info
@@ -1398,6 +1405,7 @@ def _video_info_for_path(
         "mask_missing": frame_meta["mask_missing"],
         "physicalHeight": frame_meta["physicalHeight"],
         "is_variant": frame_meta["is_variant"],
+        "experimental": bool(frame_meta.get("experimental", False)),
         "rotation": rotation,
         "source_width": source_meta["width"],
         "source_height": source_meta["height"],
@@ -1447,12 +1455,13 @@ def resolve_frame_metadata(
     resize_height = None
     if resize_width:
         resize_width = int(resize_width)
-        resize_height = int(height * (resize_width / width))
+        resize_height = int(entry.get("resizeHeight", int(height * (resize_width / width))))
 
     return {
         "device": model_name,
         "primary_match": primary_name,
         "is_variant": is_variant,
+        "experimental": bool(entry.get("experimental", False)),
         "entry": entry,
         "x": int(entry["x"]),
         "y": int(entry["y"]),
@@ -2043,6 +2052,7 @@ def cmd_video(args):
                 "masked": frame_meta["has_mask"] and not frame_meta["mask_missing"],
                 "mask_missing": frame_meta["mask_missing"],
                 "physicalHeight": frame_meta["physicalHeight"],
+                "experimental": bool(frame_meta.get("experimental", False)),
                 "rotation": _video_rotation(args),
                 "source_dimensions": video_meta["source_dimensions"],
                 **_video_output_dimension_info(frame_meta["frame_width"], frame_meta["frame_height"], args),
@@ -2344,7 +2354,7 @@ def cmd_list(args):
 
     # Group by category
     categories = {
-        "iPhone 17": [], "iPhone Air": [], "iPhone 16": [],
+        "iPhone Duo": [], "iPhone 17": [], "iPhone Air": [], "iPhone 16": [],
         "iPhone 12-13": [], "iPhone 8": [],
         "iPad": [], "MacBook": [], "iMac": [], "Studio Display": [], "Watch": [],
     }
@@ -2374,6 +2384,8 @@ def cmd_list(args):
                             flags.append(f"{len(colors)} colors")
                     if resize:
                         flags.append("scaled")
+                    if sub.get("experimental"):
+                        flags.append("experimental")
                     flag_str = C.dim(f" ({', '.join(flags)})") if flags else ""
                     categories[cat].append(f"    {C.cyan(f'{key:>5}px')} → {name}{flag_str}")
                     break
@@ -2384,6 +2396,14 @@ def cmd_list(args):
             for e in entries:
                 print(e)
             print()
+
+    manual = [name for name, entry in device_dict.get("variants", {}).items()
+              if entry.get("experimental")]
+    if manual:
+        print(f"  {C.bold('Experimental manual frames')} {C.dim('(select with --device)')}")
+        for name in manual:
+            print(f"    {name}")
+        print()
 
     # Show variant defaults
     print(f"  {C.bold('Default Variants')} {C.dim('(newest device used automatically)')}")
@@ -2688,8 +2708,10 @@ def _info_for_image(p, device_dict):
         "color_count": len(colors),
         "has_mask": entry.get("mask") == "yes",
         "resize_width": entry.get("resizeWidth"),
+        "resize_height": entry.get("resizeHeight"),
         "variants": variants,
         "is_variant": resolved_name != model_name,
+        "experimental": bool(entry.get("experimental", False)),
     })
     return info
 
@@ -3018,6 +3040,7 @@ def build_parser():
         "  frames -m shot1.png shot2.png\n"
         "  frames -m --no-scale shot1.png shot2.png\n"
         "  frames --json video-info recording.mp4\n"
+        "  frames --assets /path/to/Frames-Duo-Experimental duo.png\n"
         "  frames video --codec hevc-alpha recording.mp4\n"
         "  frames video --help\n"
         "  frames frame --help\n"
@@ -3033,7 +3056,7 @@ def build_parser():
     p.add_argument("--version", action="version", version=f"frames v{VERSION}")
     p.add_argument("--no-color", action="store_true", help="Disable colored output")
     p.add_argument("--json", action="store_true", help="Output JSON for frame, info, video, video-info, and doctor")
-    p.add_argument("--assets", default=None, help="Assets directory path")
+    p.add_argument("--assets", default=None, help="Assets directory path (also selects an experimental pack)")
     p.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     sub = p.add_subparsers(dest="cmd")
@@ -3049,7 +3072,7 @@ def build_parser():
     frame_p.add_argument("--no-scale", action="store_true", help="Disable proportional scaling when merging different devices")
     frame_p.add_argument("--output", "-o", help="Output directory")
     frame_p.add_argument("--copy", action="store_true", help="Copy a single output to the macOS clipboard")
-    frame_p.add_argument("--device", "-d", help="Force specific device frame")
+    frame_p.add_argument("--device", "-d", help='Force a named frame (e.g. "iPhone Duo Outer Open" for outer screen + back)')
     frame_p.add_argument("-f", action="store_const", const="framed", dest="subfolder", help="Save to a framed subfolder next to originals")
     frame_p.add_argument("--subfolder", dest="subfolder", metavar="NAME", help="Save to custom subfolder (e.g. --subfolder mockups)")
 
@@ -3106,7 +3129,7 @@ def build_parser():
     video_p.add_argument("--spacing", "-s", type=int, default=60, help="Merge spacing in pixels (default: 60)")
     video_p.add_argument("--no-scale", action="store_true", help="Disable proportional scaling when merging different devices")
     video_p.add_argument("--output", "-o", help="Output directory or single output file; explicit ProRes/HEVC-alpha filenames must end in .mov")
-    video_p.add_argument("--device", "-d", help="Force specific device frame")
+    video_p.add_argument("--device", "-d", help='Force a named frame (e.g. "iPhone Duo Outer Open" for outer screen + back)')
 
     # List command
     sub.add_parser("list", help="List supported devices")
@@ -3144,7 +3167,7 @@ def build_parser():
     video_info_p.add_argument("files", nargs="+", help="Video files or directories to scan")
     video_info_p.add_argument("--color", "-c", help="Frame color name, index, or 'random'")
     video_info_p.add_argument("--colors", help="Comma-separated per-input colors (e.g. Silver,random)")
-    video_info_p.add_argument("--device", "-d", help="Force specific device frame")
+    video_info_p.add_argument("--device", "-d", help='Force a named frame (e.g. "iPhone Duo Outer Open" for outer screen + back)')
     video_info_p.add_argument("--rotate", choices=tuple(VIDEO_ROTATIONS), default="none", help="Rotate video before device detection: none, clockwise, counterclockwise, or 180")
 
     # Setup command

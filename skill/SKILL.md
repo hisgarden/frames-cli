@@ -5,13 +5,14 @@ description: Frame screenshots and screen recordings with the `frames` CLI. Use 
 
 # Apple Frames CLI
 
-`frames` 1.4.0 is a single-file Python CLI that applies Apple device bezels to screenshots and videos, auto-detects devices from input dimensions, applies masks when needed, and can merge multiple framed results. Video support uses external `ffmpeg` 5.1+ and `ffprobe` 5.1+ with no extra Python media stack.
+`frames` 1.4.1 is a single-file Python CLI that applies Apple device bezels to screenshots and videos, auto-detects devices from input dimensions, applies masks when needed, and can merge multiple framed results. Video support uses external `ffmpeg` 5.1+ and `ffprobe` 5.1+ with no extra Python media stack.
 
 ## What Agents Should Know
 
 - `frames` is the default command. `frames screenshot.png` and `frames frame screenshot.png` are equivalent.
 - Use `--json` for automation with `frame`, `info`, `video`, `video-info`, and `doctor`. Global flags `--json`, `--assets`, `--verbose`, and `--no-color` work before or after subcommands. `list`, `list-colors`, `colors`, and `setup` retain human-readable output.
 - Device support comes from the installed asset bundle, not hardcoded names in this skill. Use `frames list` and `frames list-colors` as the source of truth when exact names matter.
+- Duo support requires Frames 1.4.1+ and the separate `Frames-Duo-Experimental` pack. Download [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip), extract it, and select the enclosed folder with `--assets`. Normal setup still downloads AppleFrames401.zip; updating the CLI alone does not install Duo assets. Do not claim real-device verification from generated test screenshots.
 - On macOS, the default asset location is the Apple Frames shortcut folder in iCloud Drive. That avoids downloading a second copy when the user already has the shortcut assets installed.
 - Use `frames video ...` for `.mp4`, `.mov`, and `.m4v`; the default `frames ...` path is for images.
 - Use `frames video-info ...` to probe videos and resolve the matching frame metadata without rendering.
@@ -206,6 +207,7 @@ Setup behavior:
 
 - `frames setup` downloads the current asset archive from `https://cdn.macstories.net/AppleFrames401.zip`.
 - `frames setup /path/to/Frames` points the CLI at an existing asset folder instead of downloading.
+- For Duo, `--assets /path/to/Frames-Duo-Experimental` selects the extracted pack for one command; `frames setup /path/to/Frames-Duo-Experimental` saves it as the default. `--assets` and `setup PATH` take a local folder, not a URL or ZIP file. The full pack contains 519 PNGs and retains asset format version 4. Verify the published ZIP has 95,246,128 bytes and SHA-256 `36f64bcddeb97ae0e00e9abb91d79564aeaac284a2b479f6f6f87a5798ec4b83` when validating this specific pack.
 - The asset folder must contain `NewFrames.json`, `version.txt`, and the frame/mask PNGs.
 - Setup checks `ffmpeg`/`ffprobe` for video framing and can install ffmpeg through Homebrew on macOS when run interactively.
 - `frames setup --subfolder` and `frames setup --no-subfolder` update the default save behavior in config.
@@ -214,7 +216,27 @@ Setup behavior:
 
 ## Current Supported Device Families
 
-The current v4 asset bundle used by `frames` 1.4.0 includes these primary families:
+With the experimental Duo pack and updated CLI, the exact image/video dimensions are:
+
+| Input width × height | Frame |
+| --- | --- |
+| 1398 × 2034 | iPhone Duo Outer Portrait |
+| 2034 × 1398 | iPhone Duo Outer Landscape |
+| 1878 × 2670 | iPhone Duo Inner Portrait |
+| 2670 × 1878 | iPhone Duo Inner Landscape |
+
+All four have Night Sky (default) and Star White finishes. `--device "iPhone Duo Outer Open"` frames a 1398 × 2034 input in Apple's rear view, with the display on the right. This view is not selected automatically. The pack handles the inner artwork's larger opening through explicit resize dimensions; do not resize the input yourself or add a notch. The outer camera is already part of Apple's frame. JSON reports `experimental: true`. Generated demos establish geometry at published resolutions, not actual device capture behavior. Preserve this qualification until real Duo screenshots are checked.
+
+```bash
+frames --assets /path/to/Frames-Duo-Experimental --json info duo.png
+frames --assets /path/to/Frames-Duo-Experimental -c "Star White" duo.png
+frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Portrait" outer-portrait.png
+frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Open" outer-portrait.png
+```
+
+The two explicit outer views use the same 1398 × 2034 input. The default is `iPhone Duo Outer Portrait`, showing only the outer display. `iPhone Duo Outer Open` includes the phone's back next to that display. Use the same `--device` choices with `video` and `video-info`. The flag selects one frame for the whole invocation; make separate calls to render both views. See the repository's `docs/iphone-duo-experimental.md` for the full setup, verification, and restore instructions.
+
+The standard v4 asset bundle used by `frames` 1.4.1 includes these primary families:
 
 - iPhone: iPhone 17, iPhone 17 Pro, iPhone 17 Pro Max, iPhone Air, iPhone 16, iPhone 16 Plus, iPhone 12-13 Pro, iPhone 12-13 Pro Max, iPhone 12-13 mini, iPhone 8 / 2020 SE
 - iPad: iPad mini 2021, iPad 2021, iPad Air 2020, iPad Pro 2018-2021 11-inch, iPad Pro 2018-2021 12.9-inch, iPad Pro 2024 11-inch, iPad Pro 2024 13-inch
