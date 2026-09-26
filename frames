@@ -603,6 +603,20 @@ FRAME_VARIANTS = {
     "Watch Series 11 46":          ["Watch Series 11 46", "Watch Series 10 46"],
 }
 
+# Width keys the published NewFrames.json lacks even though the frame PNG ships.
+# The pack's own entry wins if a later release adds one.
+MISSING_DEVICE_ENTRIES = {
+    # iPhone 12/13 mini screenshots are 1125x2436, scaled to the 1080x2340 panel.
+    "1125": {
+        "name": "iPhone 12-13 mini Portrait",
+        "resizeWidth": 1080,
+        "resizeHeight": 2340,
+        "x": "80",
+        "y": "80",
+        "physicalHeight": 131.5,
+    },
+}
+
 # ── Core Engine ──────────────────────────────────────────────────────────────
 
 def load_json(assets_dir):
@@ -613,10 +627,13 @@ def load_json(assets_dir):
         sys.exit(1)
     try:
         with open(json_path, encoding="utf-8") as f:
-            return json.load(f)
+            device_dict = json.load(f)
     except json.JSONDecodeError as e:
         print(f"{C.red('Error')}: Invalid JSON in {json_path}: {e}", file=sys.stderr)
         sys.exit(1)
+    for key, entry in MISSING_DEVICE_ENTRIES.items():
+        device_dict.setdefault(key, entry)
+    return device_dict
 
 def detect_device_size(width, height, device_dict):
     """Detect device from dimensions using width + overlap height check."""
@@ -785,6 +802,14 @@ def _frame_asset_path(assets_dir, model_name, color):
         frame_path = assets_dir / f"{model_name}.png"
     return frame_path
 
+def asset_is_sideways(model_name, size):
+    """True for a Landscape frame or mask stored in portrait orientation.
+
+    Apple Frames 4 ships the iPhone 12-13 and iPhone 15 Pro landscape frames this
+    way; a 90° counterclockwise turn puts the notch on the left like other frames."""
+    width, height = size
+    return model_name.endswith(" Landscape") and height > width
+
 def load_mask(assets_dir, model_name):
     """Load a read-only cached mask PNG if it exists."""
     mask_path = assets_dir / f"{model_name}_mask.png"
@@ -942,6 +967,8 @@ def frame_screenshot(
         raise FileNotFoundError(f"Frame asset not found: {frame_path}")
     # Compositing only reads the frame, so it can use the cached image directly.
     frame = _load_rgba_asset_cached(str(frame_path))
+    if asset_is_sideways(model_name, frame.size):
+        frame = frame.transpose(Image.ROTATE_90)
 
     # 6. Apply mask
     has_mask = entry.get("mask") == "yes"
@@ -949,6 +976,8 @@ def frame_screenshot(
     if has_mask:
         mask = load_mask(assets_dir, model_name)
         if mask:
+            if asset_is_sideways(model_name, mask.size):
+                mask = mask.transpose(Image.ROTATE_90)
             # Ensure mask matches screenshot dimensions
             if mask.size != img.size:
                 mask = mask.resize(img.size, Image.LANCZOS)
@@ -1440,16 +1469,23 @@ def resolve_frame_metadata(
     # Video rendering uses ffmpeg; metadata only needs the PNG header.
     with Image.open(frame_path) as frame:
         frame_size = frame.size
+    rotate_frame = asset_is_sideways(model_name, frame_size)
+    if rotate_frame:
+        frame_size = frame_size[::-1]
 
     has_mask = entry.get("mask") == "yes"
     mask_path = assets_dir / f"{model_name}_mask.png"
     mask_missing = has_mask and not mask_path.exists()
+    rotate_mask = False
     if mask_missing:
         print(
             f"  {C.yellow('Warning')}: mask file missing for {model_name} "
             f"(expected {model_name}_mask.png). Rendering without mask.",
             file=sys.stderr,
         )
+    elif has_mask:
+        with Image.open(mask_path) as mask:
+            rotate_mask = asset_is_sideways(model_name, mask.size)
 
     resize_width = entry.get("resizeWidth")
     resize_height = None
@@ -1467,11 +1503,13 @@ def resolve_frame_metadata(
         "y": int(entry["y"]),
         "color": color,
         "frame_path": str(frame_path),
+        "rotate_frame": rotate_frame,
         "frame_width": frame_size[0],
         "frame_height": frame_size[1],
         "frame_size": f"{frame_size[0]}x{frame_size[1]}",
         "has_mask": has_mask,
         "mask_path": str(mask_path) if has_mask and not mask_missing else None,
+        "rotate_mask": rotate_mask,
         "mask_missing": mask_missing,
         "resize_width": resize_width,
         "resize_height": resize_height,
@@ -1734,6 +1772,8 @@ def _framed_video_filters(src_path, frame_meta, video_meta, args, input_index=0,
     video_label = "v0"
     if mask_index is not None:
         mask_chain = f"[{mask_index}:v]format=gray"
+        if frame_meta.get("rotate_mask"):
+            mask_chain += "," + VIDEO_ROTATIONS["counterclockwise"]
         if frame_meta["resize_width"]:
             mask_chain += f",scale={frame_meta['resize_width']}:{frame_meta['resize_height']}"
         mask_chain += "[m0]"
@@ -1752,7 +1792,11 @@ def _framed_video_filters(src_path, frame_meta, video_meta, args, input_index=0,
     overlay_format = ":format=auto"
     out_format = _video_pixel_format(args)
     filters.append(f"[base][{video_label}]overlay={frame_meta['x']}:{frame_meta['y']}{overlay_format}[tmp]")
-    filters.append(f"[tmp][{frame_index}:v]overlay=0:0:format=auto[framed]")
+    frame_label = f"{frame_index}:v"
+    if frame_meta.get("rotate_frame"):
+        filters.append(f"[{frame_index}:v]{VIDEO_ROTATIONS['counterclockwise']}[f0]")
+        frame_label = "f0"
+    filters.append(f"[tmp][{frame_label}]overlay=0:0:format=auto[framed]")
     output_filters = []
     pad_filter = _video_pad_filter(frame_meta["frame_width"], frame_meta["frame_height"], args) if pad_output else None
     if pad_filter:
@@ -1763,7 +1807,7 @@ def _framed_video_filters(src_path, frame_meta, video_meta, args, input_index=0,
     filters.append(f"[framed]{','.join(output_filters)}[out]")
 
     if prefix:
-        for label in ("v0", "m0", "vm", "base", "tmp", "framed", "out"):
+        for label in ("v0", "m0", "vm", "base", "tmp", "f0", "framed", "out"):
             filters = [part.replace("[" + label + "]", "[" + prefix + label + "]") for part in filters]
     return inputs, filters, prefix + "out", frame_index + 1
 
