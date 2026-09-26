@@ -1058,7 +1058,10 @@ def require_ffmpeg_tools():
 
 
 def _require_hevc_alpha_support():
-    """Check the optional macOS alpha encoder before creating output files."""
+    """Check the optional macOS alpha encoder before creating output files.
+
+    Returns the pixel format to feed it: ayuv when the encoder accepts it
+    (ffmpeg 8+), otherwise bgra."""
     if sys.platform != "darwin":
         raise RuntimeError("--codec hevc-alpha requires macOS. Use --alpha for ProRes MOV instead.")
     try:
@@ -1079,13 +1082,16 @@ def _require_hevc_alpha_support():
             "This ffmpeg build lacks HEVC alpha support (hevc_videotoolbox, alpha_quality, and BGRA are required). "
             "Update ffmpeg or use --alpha for ProRes MOV."
         )
+    # On macOS 27, VideoToolbox's own BGRA conversion stores opaque alpha as 254,
+    # so prefer handing it YUV with alpha that ffmpeg has already converted.
+    return "ayuv" if re.search(r"Supported pixel formats:.*\bayuv\b", help_text) else "bgra"
 
 
 def _validate_video_codec(args):
     if args.codec == "hevc-alpha":
         if args.quality is not None:
             raise ValueError("--quality is not supported with --codec hevc-alpha. Use --preset instead.")
-        _require_hevc_alpha_support()
+        args.hevc_alpha_pix_fmt = _require_hevc_alpha_support()
 
 
 def _video_tools_error():
@@ -1279,6 +1285,19 @@ def _output_uses_alpha(args):
 
 def _video_pixel_format(args):
     return {"hevc-alpha": "bgra", "prores": "yuva444p10le"}.get(_video_output_codec(args), "yuv420p")
+
+
+def _hevc_alpha_uses_ayuv(args):
+    return _video_output_codec(args) == "hevc-alpha" and getattr(args, "hevc_alpha_pix_fmt", "bgra") == "ayuv"
+
+
+def _encoder_input_filter(args):
+    """Final filter step that converts a finished canvas to the encoder's input format."""
+    if _hevc_alpha_uses_ayuv(args):
+        # Planar gbrap keeps alpha exact; ffmpeg 9 rounds packed BGRA alpha up on the way
+        # to ayuv. BT.709 matches what Apple decoders assume for HD, and the encoder tags it.
+        return "format=gbrap,scale=out_color_matrix=bt709:out_range=tv,format=ayuv"
+    return f"format={_video_pixel_format(args)}"
 
 
 def _video_rotation(args):
@@ -1532,9 +1551,10 @@ def _encoder_args(args, use_hardware=True, prefer_software=False):
     codec = _video_output_codec(args)
     preset = VIDEO_PRESETS[_video_preset(args)]
     if codec == "hevc-alpha":
+        pix_fmt = ["-pix_fmt", "ayuv", "-colorspace", "bt709"] if _hevc_alpha_uses_ayuv(args) else ["-pix_fmt", "bgra"]
         # VideoToolbox may choose software, but never retry with an opaque codec.
         return [
-            "-c:v", "hevc_videotoolbox", "-pix_fmt", "bgra", "-alpha_quality", "1",
+            "-c:v", "hevc_videotoolbox", *pix_fmt, "-alpha_quality", "1",
             "-allow_sw", "1", "-tag:v", "hvc1", "-b:v", preset["hevc_bitrate"],
         ], False
     if codec == "prores":
@@ -1803,7 +1823,8 @@ def _framed_video_filters(src_path, frame_meta, video_meta, args, input_index=0,
         if out_format == "bgra":
             output_filters.append("format=bgra")
         output_filters.append(pad_filter)
-    output_filters.append(f"format={out_format}")
+    # HEVC alpha merge tiles skip padding and stay in the working format until the final canvas.
+    output_filters.append(_encoder_input_filter(args) if pad_output else f"format={out_format}")
     filters.append(f"[framed]{','.join(output_filters)}[out]")
 
     if prefix:
@@ -1970,7 +1991,7 @@ def render_merged_video(items, out_path, args, progress_label=None):
         if out_format == "bgra":
             output_filters.append("format=bgra")
         output_filters.append(pad_filter)
-    output_filters.append(f"format={out_format}")
+    output_filters.append(_encoder_input_filter(args))
     filters.append(f"[{current}]{','.join(output_filters)}[out]")
 
     map_args = ["-map", "[out]"]

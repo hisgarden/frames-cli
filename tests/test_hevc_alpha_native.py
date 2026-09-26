@@ -20,23 +20,33 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 frames = importlib.util.module_from_spec(spec)
 loader.exec_module(frames)
 
+# Writes the first frame's decoded alpha plane as a PGM. Asking AVFoundation for
+# BGRA instead would add Apple's display conversion, which rounds opaque alpha
+# down to 254 on macOS 27 even for a perfectly encoded stream.
 SWIFT_DECODER = """
 import Foundation
 import AVFoundation
-import ImageIO
+import CoreVideo
 
 let asset = AVURLAsset(url: URL(fileURLWithPath: CommandLine.arguments[1]))
-let generator = AVAssetImageGenerator(asset: asset)
-generator.appliesPreferredTrackTransform = true
-generator.requestedTimeToleranceBefore = .zero
-generator.requestedTimeToleranceAfter = .zero
-let image = try generator.copyCGImage(at: .zero, actualTime: nil)
-let output = URL(fileURLWithPath: CommandLine.arguments[2])
-guard let destination = CGImageDestinationCreateWithURL(output as CFURL, "public.png" as CFString, 1, nil) else {
-    fatalError("Could not create PNG destination")
+let reader = try AVAssetReader(asset: asset)
+let output = AVAssetReaderTrackOutput(track: asset.tracks(withMediaType: .video)[0], outputSettings: [
+    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8VideoRange_8A_TriPlanar,
+])
+reader.add(output)
+guard reader.startReading(), let sample = output.copyNextSampleBuffer(),
+      let buffer = CMSampleBufferGetImageBuffer(sample) else {
+    fatalError("Could not decode the first frame: \\(String(describing: reader.error))")
 }
-CGImageDestinationAddImage(destination, image, nil)
-guard CGImageDestinationFinalize(destination) else { fatalError("Could not write decoded PNG") }
+CVPixelBufferLockBaseAddress(buffer, .readOnly)
+let alphaPlane = 2
+let width = CVPixelBufferGetWidthOfPlane(buffer, alphaPlane)
+let height = CVPixelBufferGetHeightOfPlane(buffer, alphaPlane)
+let stride = CVPixelBufferGetBytesPerRowOfPlane(buffer, alphaPlane)
+let base = CVPixelBufferGetBaseAddressOfPlane(buffer, alphaPlane)!.assumingMemoryBound(to: UInt8.self)
+var data = Data("P5\\n\\(width) \\(height)\\n255\\n".utf8)
+for y in 0..<height { data.append(base + y * stride, count: width) }
+try data.write(to: URL(fileURLWithPath: CommandLine.arguments[2]))
 """
 
 
@@ -110,7 +120,7 @@ class NativeHEVCAlphaTests(unittest.TestCase):
                 completed = subprocess.run(command, env=env, check=True, capture_output=True, text=True, timeout=30)
                 metadata = json.loads(completed.stdout)
                 self.assertEqual(metadata["output_codec"], "hevc-alpha")
-                decoded = self.root / (name + ".png")
+                decoded = self.root / (name + ".pgm")
                 subprocess.run([str(self.decoder), str(output), str(decoded)],
                                check=True, capture_output=True, text=True, timeout=30)
                 size = (64, 54) if merge else (30, 54)
@@ -119,9 +129,8 @@ class NativeHEVCAlphaTests(unittest.TestCase):
                     expected.paste(frame_alpha, (0, 0))
                     if merge:
                         expected.paste(frame_alpha, (34, 0))
-                with Image.open(decoded) as image:
-                    self.assertEqual(image.size, size)
-                    actual_alpha = image.convert("RGBA").getchannel("A")
+                with Image.open(decoded) as actual_alpha:
+                    self.assertEqual(actual_alpha.size, size)
                     self.assertEqual(ImageChops.difference(actual_alpha, expected).getextrema(), (0, 0),
                                      "Native HEVC alpha differs from the expected mask, frame, spacing, or padding")
 

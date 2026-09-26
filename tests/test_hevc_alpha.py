@@ -136,6 +136,19 @@ class HEVCAlphaTests(unittest.TestCase):
                         self.assertRegex(graph, "pad=30:54:0:0:color=" + re.escape(canvas_color) + r"(?=[,;\[])")
                     self.assertIn("color=c=" + canvas_color, graph)
 
+    def test_ayuv_encoder_input_converts_only_the_final_canvas(self):
+        # ffmpeg 8+ lists ayuv; the default help above models older builds that only take bgra.
+        self.capability.return_value = subprocess.CompletedProcess([], 0, ENCODER_HELP.replace(" bgra", " bgra ayuv"), "")
+        for merge in (False, True):
+            with self.subTest(merge=merge):
+                self.run_command(["--codec", "hevc-alpha"], merge=merge)
+                command = self.render.call_args.args[0]
+                self.assertEqual(command[command.index("-pix_fmt") + 1], "ayuv")
+                self.assertEqual(command[command.index("-colorspace") + 1], "bt709")
+                graph = command[command.index("-filter_complex") + 1]
+                self.assertIn("format=gbrap,scale=out_color_matrix=bt709:out_range=tv,format=ayuv[out]", graph)
+                self.assertEqual(graph.count("format=ayuv"), 1)
+
     def test_merge_scales_original_frame_dimensions_by_physical_height(self):
         devices = frames.load_json(self.assets)
         devices["12"] = {"name": "Small", "x": 2, "y": 2, "physicalHeight": 40}
