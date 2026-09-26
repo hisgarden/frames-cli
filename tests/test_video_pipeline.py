@@ -32,6 +32,24 @@ class VideoPipelineTests(unittest.TestCase):
                     result = frames.resolve_frame_metadata(24, 48, root, {})
             self.assertEqual(result["frame_size"], "30x54")
 
+    def test_sideways_landscape_assets_are_rotated_in_filter_graph(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            Image.new("RGBA", (30, 54)).save(root / "Phone Landscape.png")
+            Image.new("L", (24, 48)).save(root / "Phone Landscape_mask.png")
+            devices = {"48": {"name": "Phone Landscape", "x": "3", "y": "3", "mask": "yes"}}
+            frame_meta = frames.resolve_frame_metadata(48, 24, root, devices)
+            self.assertEqual(frame_meta["frame_size"], "54x30")
+
+            args = Namespace(background=None, alpha=False, codec="h264", rotate="none")
+            _, filters, _, _ = frames._framed_video_filters(
+                Path("source.mp4"), frame_meta, {"fps_rate": "30/1", "duration": 1.0}, args, prefix="a",
+            )
+            graph = ";".join(filters)
+            self.assertIn("[1:v]format=gray,transpose=2[am0]", graph)
+            self.assertIn("[2:v]transpose=2[af0]", graph)
+            self.assertIn("[atmp][af0]overlay=0:0", graph)
+
     def test_progress_drains_large_stderr_and_retains_error(self):
         # Run in a separate process so a pipe regression fails with a timeout.
         worker = """

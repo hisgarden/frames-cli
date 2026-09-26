@@ -76,6 +76,38 @@ class ImageTests(unittest.TestCase):
             self.assertEqual(repeated.getpixel((0, 0)), frame.getpixel((0, 0)))
             self.assertTrue(info["masked"])
 
+    def test_missing_mini_portrait_entry_is_added_without_overriding_pack(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            json_path = root / "NewFrames.json"
+            json_path.write_text("{}", encoding="utf-8")
+            self.assertEqual(frames.load_json(root)["1125"]["name"], "iPhone 12-13 mini Portrait")
+
+            json_path.write_text(json.dumps({"1125": {"name": "Pack"}}), encoding="utf-8")
+            self.assertEqual(frames.load_json(root)["1125"]["name"], "Pack")
+
+    def test_sideways_landscape_frame_and_mask_are_rotated_not_stretched(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # Portrait-shaped "Landscape" assets, as some Apple Frames packs ship them.
+            frame = Image.new("RGBA", (6, 10), (0, 0, 0, 0))
+            frame.putpixel((0, 0), (255, 0, 0, 255))
+            frame.save(root / "Phone Landscape.png")
+            mask = Image.new("RGBA", (4, 8), (255, 255, 255, 255))
+            mask.putpixel((0, 0), (0, 0, 0, 255))
+            mask.save(root / "Phone Landscape_mask.png")
+            source = root / "screen.png"
+            Image.new("RGBA", (8, 4), (10, 60, 120, 255)).save(source)
+            devices = {"8": {"name": "Phone Landscape", "x": "1", "y": "1", "mask": "yes"}}
+
+            result, _ = frames.frame_screenshot(source, root, devices)
+
+            # A 90° counterclockwise turn moves each top-left marker to the bottom-left.
+            self.assertEqual(result.size, (10, 6))
+            self.assertEqual(result.getpixel((0, 5)), (255, 0, 0, 255))
+            self.assertEqual(result.getpixel((1, 4))[3], 0)
+            self.assertEqual(result.getpixel((1, 1))[3], 255)
+
     def test_batch_metadata_matches_each_written_batch(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
