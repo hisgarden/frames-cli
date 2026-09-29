@@ -34,13 +34,15 @@ except ImportError:
 
 warnings.simplefilter("error", Image.DecompressionBombWarning)
 
-VERSION = "1.4.1"
+VERSION = "1.5.0"
 APP_NAME = "frames"
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "frames"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-ASSETS_URL = "https://cdn.macstories.net/AppleFrames401.zip"
+ASSETS_URL = "https://cdn.macstories.net/AppleFrames402.zip"
 ASSETS_MIN_VERSION = 4
+# Newest frame in the standard pack; doctor suggests updating packs without it.
+LATEST_PACK_FRAME = "iPhone 18 Pro Portrait"
 LARGE_IMAGE_WARN_DIMENSION = 20000
 LARGE_IMAGE_MAX_DIMENSION = 50000
 VALID_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".heic", ".tiff", ".webp"}
@@ -396,7 +398,7 @@ def guided_setup(reason=None):
     else:
         print(f"  {C.bold('Apple Frames 4')} asset setup")
     print()
-    print(f"  Download device frames from {C.cyan('cdn.macstories.net')}? (~40 MB)")
+    print(f"  Download device frames from {C.cyan('cdn.macstories.net')}? (~45 MB)")
     print()
     print(f"  Install to {C.cyan(short_default)}")
     print()
@@ -555,6 +557,10 @@ FRAME_COLORS = {
     "iPhone Duo Inner Portrait":   ["Night Sky", "Star White"],
     "iPhone Duo Inner Landscape":  ["Night Sky", "Star White"],
     "iPhone Duo Outer Open":       ["Night Sky", "Star White"],
+    "iPhone 18 Pro Portrait":      ["Burgundy", "Glacier", "Silver", "Black"],
+    "iPhone 18 Pro Landscape":     ["Burgundy", "Glacier", "Silver", "Black"],
+    "iPhone 18 Pro Max Portrait":  ["Burgundy", "Glacier", "Silver", "Black"],
+    "iPhone 18 Pro Max Landscape": ["Burgundy", "Glacier", "Silver", "Black"],
     "iPhone 17 Pro Portrait":      ["Cosmic Orange", "Deep Blue", "Silver"],
     "iPhone 17 Pro Landscape":     ["Cosmic Orange", "Deep Blue", "Silver"],
     "iPhone 17 Pro Max Portrait":  ["Cosmic Orange", "Deep Blue", "Silver"],
@@ -585,12 +591,13 @@ FRAME_COLORS = {
     "Watch Series 11 46":           ["Aluminum Jet Black + Sport Band Black", "Aluminum Jet Black + Sport Loop Dark Gray", "Aluminum Rose Gold + Sport Band Light Blush", "Aluminum Rose Gold + Sport Loop Purple Fog", "Aluminum Silver + Sport Band Neon Yellow", "Aluminum Silver + Sport Band Purple Fog", "Aluminum Silver + Sport Loop Forest", "Aluminum Silver + Sport Loop Neon Yellow", "Aluminum Space Gray + Sport Band Anchor Blue", "Aluminum Space Gray + Sport Band Black", "Aluminum Space Gray + Sport Loop Anchor Blue", "Aluminum Space Gray + Sport Loop Forest", "Titanium Gold + Magnetic Link Sage Gray", "Titanium Gold + Milanese Loop", "Titanium Gold + Sport Band Light Blush", "Titanium Gold + Sport Band Purple Fog", "Titanium Natural + Magnetic Link Caramel", "Titanium Natural + Milanese Loop", "Titanium Natural + Sport Band Stone Gray", "Titanium Slate + Magnetic Link Navy", "Titanium Slate + Milanese Loop", "Titanium Slate + Sport Band Black"],
 }
 
-# Frame Variants: first item = default device
+# Frame Variants: the first entry installed in the asset pack is the default.
+# Older packs without iPhone 18 Pro fall back to the next entry.
 FRAME_VARIANTS = {
-    "iPhone 17 Portrait":          ["iPhone 17 Pro Portrait", "iPhone 17 Portrait", "iPhone 16 Pro Portrait"],
-    "iPhone 17 Landscape":         ["iPhone 17 Pro Landscape", "iPhone 17 Landscape", "iPhone 16 Pro Landscape"],
-    "iPhone 17 Pro Max Portrait":  ["iPhone 17 Pro Max Portrait", "iPhone 16 Pro Max Portrait"],
-    "iPhone 17 Pro Max Landscape": ["iPhone 17 Pro Max Landscape", "iPhone 16 Pro Max Landscape"],
+    "iPhone 17 Portrait":          ["iPhone 18 Pro Portrait", "iPhone 17 Pro Portrait", "iPhone 17 Portrait", "iPhone 16 Pro Portrait"],
+    "iPhone 17 Landscape":         ["iPhone 18 Pro Landscape", "iPhone 17 Pro Landscape", "iPhone 17 Landscape", "iPhone 16 Pro Landscape"],
+    "iPhone 17 Pro Max Portrait":  ["iPhone 18 Pro Max Portrait", "iPhone 17 Pro Max Portrait", "iPhone 16 Pro Max Portrait"],
+    "iPhone 17 Pro Max Landscape": ["iPhone 18 Pro Max Landscape", "iPhone 17 Pro Max Landscape", "iPhone 16 Pro Max Landscape"],
     "iPhone 16 Portrait":          ["iPhone 16 Portrait", "iPhone 15 Pro Portrait"],
     "iPhone 16 Landscape":         ["iPhone 16 Landscape", "iPhone 15 Pro Landscape"],
     "iPhone 16 Plus Portrait":     ["iPhone 16 Plus Portrait", "iPhone 15 Pro Max Portrait"],
@@ -662,20 +669,23 @@ def detect_device(img, device_dict):
 
 
 def resolve_variant(model_name, device_dict):
-    """Apply variant resolution — first item in variant array is the default."""
-    if model_name not in FRAME_VARIANTS:
-        return None, model_name
-
-    variants = FRAME_VARIANTS[model_name]
-    default_variant = variants[0]
-
-    if default_variant != model_name:
-        # Load variant device data from JSON
-        if "variants" in device_dict and default_variant in device_dict["variants"]:
-            variant_data = device_dict["variants"][default_variant]
+    """Return the first installed variant, stopping at the primary match."""
+    installed = device_dict.get("variants", {})
+    for candidate in FRAME_VARIANTS.get(model_name, []):
+        if candidate == model_name:
+            break
+        if candidate in installed:
+            variant_data = installed[candidate]
             return variant_data, variant_data["name"]
 
     return None, model_name
+
+
+def installed_variants(model_name, device_dict):
+    """List the variants of a primary match that the asset pack can render."""
+    installed = device_dict.get("variants", {})
+    return [name for name in FRAME_VARIANTS.get(model_name, [])
+            if name == model_name or name in installed]
 
 
 def resolve_device_entry(width, height, device_dict, force_device=None, device_index=None, verbose=False):
@@ -2471,9 +2481,9 @@ def cmd_list(args):
         print()
 
     # Show variant defaults
-    print(f"  {C.bold('Default Variants')} {C.dim('(newest device used automatically)')}")
-    for primary, variants in FRAME_VARIANTS.items():
-        default = variants[0]
+    print(f"  {C.bold('Default Variants')} {C.dim('(newest installed device used automatically)')}")
+    for primary in FRAME_VARIANTS:
+        _, default = resolve_variant(primary, device_dict)
         if default != primary:
             print(f"    {C.dim(primary)} → {C.green(default)}")
     print()
@@ -2763,7 +2773,7 @@ def _info_for_image(p, device_dict):
         entry = variant_entry
 
     colors = FRAME_COLORS.get(resolved_name, [])
-    variants = FRAME_VARIANTS.get(model_name, [])
+    variants = installed_variants(model_name, device_dict)
 
     info.update({
         "device": resolved_name,
@@ -2976,6 +2986,15 @@ def copy_to_clipboard(path, announce=True):
         print(f"  {C.yellow('Warning')}: Could not copy to clipboard", file=sys.stderr)
 
 
+def _pack_has_frame(json_path, name):
+    """True when NewFrames.json defines a variant with this name."""
+    try:
+        with open(json_path, encoding="utf-8") as f:
+            return name in json.load(f).get("variants", {})
+    except (ValueError, OSError, AttributeError):
+        return False
+
+
 def cmd_doctor(args):
     """Diagnose common asset and config problems."""
     config, config_error = read_config_file()
@@ -3005,6 +3024,11 @@ def cmd_doctor(args):
 
     if assets_dir.exists() and ok and png_count == 0:
         issues.append(f"No frame PNGs were found in {assets_dir}.")
+    if ok and not _pack_has_frame(json_path, LATEST_PACK_FRAME):
+        notes.append(
+            f"This asset pack predates {LATEST_PACK_FRAME.rsplit(' ', 1)[0]}, so older frames are used. "
+            "Run `frames setup` to download the current standard pack."
+        )
 
     bad_default_colors = []
     if config and isinstance(config.get("default_colors"), dict):

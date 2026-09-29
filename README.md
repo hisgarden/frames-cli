@@ -68,7 +68,7 @@ Then restart your terminal or run `source ~/.zshrc`.
 The CLI offers to download Apple Frames 4 assets when a command needs them and you run it interactively. Setup also checks video requirements and, on macOS, can install ffmpeg for you with Homebrew if it is missing. You can also set up manually:
 
 ```bash
-# Guided download (interactive — downloads ~40 MB from cdn.macstories.net)
+# Guided download (interactive — downloads ~45 MB from cdn.macstories.net)
 frames setup
 
 # Or point to an existing assets folder
@@ -79,9 +79,27 @@ The guided setup downloads the asset pack, extracts it, and saves the path to `~
 
 You can also set the `FRAMES_ASSETS` environment variable instead of using the config file.
 
+### iPhone 18 Pro and 18 Pro Max
+
+Frames **1.5.0 or later** frames iPhone 18 Pro and 18 Pro Max screenshots and recordings with Apple's official bezels in Burgundy, Glacier, Silver, and Black. They share screen sizes with the 17 Pro models, so they are now the default for these inputs:
+
+| Input width × height | Automatic frame |
+| --- | --- |
+| 1206 × 2622 | iPhone 18 Pro Portrait |
+| 2622 × 1206 | iPhone 18 Pro Landscape |
+| 1320 × 2868 | iPhone 18 Pro Max Portrait |
+| 2868 × 1320 | iPhone 18 Pro Max Landscape |
+
+The artwork ships in the standard asset pack. After updating the CLI, run `frames setup` once to download it; until then, `frames doctor` notes that your pack predates iPhone 18 Pro, and these sizes keep using the 17 Pro frames. The 17 Pro frames remain available with `--device`:
+
+```bash
+frames -d "iPhone 17 Pro Portrait" screenshot.png
+frames -d "iPhone 17 Pro Max Landscape" -c "Deep Blue" screenshot.png
+```
+
 ### Experimental iPhone Duo support
 
-Frames **1.4.1 or later** supports Duo with a separate, opt-in asset pack. It includes both displays in portrait and landscape, Night Sky and Star White finishes, and a view showing the phone's back beside its outer screen. Updating the CLI alone does not install the pack; normal `frames setup` still downloads AppleFrames401.zip.
+Frames **1.4.1 or later** supports Duo with a separate, opt-in asset pack. It includes both displays in portrait and landscape, Night Sky and Star White finishes, and a view showing the phone's back beside its outer screen. Updating the CLI alone does not install the pack, and normal `frames setup` downloads the standard pack instead. The Duo pack predates iPhone 18 Pro, so while it is selected, 17 Pro sizes use the 17 Pro frames.
 
 Download [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB) and unzip it. The enclosed `Frames-Duo-Experimental` folder contains the existing frames too. Select that folder for an individual command:
 
@@ -441,13 +459,13 @@ The global options `--json`, `--assets`, `--verbose` (`-v`), and `--no-color` wo
 
 ```bash
 frames --json screenshot.png
-# → {"source": "screenshot.png", "device": "iPhone 17 Pro Portrait", "color": "Cosmic Orange", "output": "/path/to/screenshot_framed.png", ...}
+# → {"source": "screenshot.png", "device": "iPhone 18 Pro Portrait", "color": "Burgundy", "output": "/path/to/screenshot_framed.png", ...}
 
 frames --json -m screenshot1.png screenshot2.png
 # → {"merged": "/path/to/merged_framed.png", "count": 2, "frames": [...]}
 
 frames --json info screenshot.png
-# → {"file": "screenshot.png", "device": "iPhone 17 Pro Portrait", "width": 1290, "height": 2796, ...}
+# → {"file": "screenshot.png", "device": "iPhone 18 Pro Portrait", "width": 1206, "height": 2622, ...}
 ```
 
 ---
@@ -497,7 +515,7 @@ frames --json info screenshot.png
 
 ### `setup`
 
-Download assets or configure the assets folder path. Without arguments, starts an interactive download from `cdn.macstories.net` (~40 MB). With a path, points the CLI at an existing assets folder. With only `--subfolder` or `--no-subfolder`, updates that setting without starting setup.
+Download assets or configure the assets folder path. Without arguments, starts an interactive download from `cdn.macstories.net` (~45 MB). With a path, points the CLI at an existing assets folder. With only `--subfolder` or `--no-subfolder`, updates that setting without starting setup.
 
 ```bash
 # Download assets interactively (first-time setup or re-download)
@@ -595,6 +613,7 @@ frames -f ~/screenshots/*.png
 | Category | Devices | Notes |
 |----------|---------|-------|
 | iPhone Duo (experimental pack) | Inner and outer displays | Portrait + landscape; optional rear view |
+| iPhone 18 | 18 Pro, 18 Pro Max | Portrait + landscape; 4 colors (Burgundy default); default for 17 Pro sizes |
 | iPhone 17 | 17, 17 Pro, 17 Pro Max | Portrait + landscape |
 | iPhone Air | Air | Portrait + landscape |
 | iPhone 16 | 16, 16 Plus, 16 Pro, 16 Pro Max | Portrait + landscape |
@@ -620,7 +639,7 @@ python3 -m unittest discover -s tests -v
 
 The video rendering tests also need `ffmpeg` and `ffprobe`; they are skipped when either tool is missing. Tests create temporary inputs and assets. The optional native HEVC-alpha test also requires macOS, a working `swiftc`, and ffmpeg HEVC alpha support. It skips when prerequisites are unavailable; otherwise, failures fail the suite. It decodes exports through AVFoundation to check transparency, masks, geometry, and opaque backgrounds.
 
-The Duo tests cover device listing, exact resolution matching, both finishes, the manual rear view, explicit image/video resize dimensions, enclosed screen masks, and metadata removal. They use small synthetic assets; full artwork verification is described in the [Duo guide](docs/iphone-duo-experimental.md).
+The iPhone 18 Pro tests cover the new shared-size defaults, the fallback to 17 Pro with older packs, explicit 17 Pro selection, `list`, and the `doctor` note. The Duo tests cover device listing, exact resolution matching, both finishes, the manual rear view, explicit image/video resize dimensions, enclosed screen masks, and metadata removal. They use small synthetic assets; full artwork verification is described in the [Duo guide](docs/iphone-duo-experimental.md).
 
 ---
 

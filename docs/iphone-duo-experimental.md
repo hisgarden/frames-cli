@@ -2,7 +2,7 @@
 
 Frames 1.4.1 adds Apple's iPhone Duo bezels for developers testing mock screenshots and screen recordings at the announced display resolutions. Both displays work in portrait and landscape, in Night Sky and Star White. A separate manual choice shows the phone's back beside the outer display.
 
-You need **Frames 1.4.1 or later and the separate Duo asset pack**. Updating the CLI alone does not download the new artwork. Duo remains opt-in: normal `frames setup` downloads the standard AppleFrames401.zip pack.
+You need **Frames 1.4.1 or later and the separate Duo asset pack**. Updating the CLI alone does not download the new artwork. Duo remains opt-in: normal `frames setup` downloads the standard pack. The Duo pack was built before iPhone 18 Pro, so it keeps the 17 Pro frames for those screen sizes.
 
 The source material is Apple's [technical specifications](https://www.apple.com/iphone-duo/specs/), [September 9 announcement](https://www.apple.com/newsroom/2026/09/apple-unveils-iphone-duo/), and [official design resources](https://developer.apple.com/design/resources/). The UI demos are original concepts, not screenshots of shipping iOS or proof of actual device capture dimensions.
 
@@ -151,7 +151,7 @@ The builder copies the base PNGs unchanged, adds ten Duo bezel PNGs and five mas
 
 Descriptive text, XMP, EXIF, timestamps, and resolution metadata are removed. The builder chooses the smaller lossless encoding and verifies identical decoded RGBA pixels for every bezel. Color management chunks are preserved if present. No Photoshop files, disk image, Finder files, absolute paths, or user settings go into the ZIP. The ZIP uses fixed file order and timestamps.
 
-The published pack uses the CDN download linked above. It does not replace AppleFrames401.zip. Apple's Design Resources License is retained inside the ZIP and governs the artwork; the repository's MIT license does not replace it. The builder can also produce the pack locally from a user's own Apple download.
+The published pack uses the CDN download linked above. It does not replace the standard pack. Apple's Design Resources License is retained inside the ZIP and governs the artwork; the repository's MIT license does not replace it. The builder can also produce the pack locally from a user's own Apple download.
 
 ## Verification
 

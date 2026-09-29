@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0 — Unreleased
+
+Frames 1.5.0 adds **iPhone 18 Pro and iPhone 18 Pro Max** using Apple's official bezels in Burgundy, Glacier, Silver, and Black. Burgundy is the default.
+
+- **New defaults for shared sizes.** iPhone 18 Pro uses the same screen sizes as iPhone 17 Pro (1206 × 2622 and 2622 × 1206); iPhone 18 Pro Max matches 17 Pro Max (1320 × 2868 and 2868 × 1320). These inputs now use the 18 Pro frames automatically.
+- **17 Pro frames stay available.** Select them with `--device`, for example `frames -d "iPhone 17 Pro Portrait" screenshot.png`.
+- **New standard asset pack.** `frames setup` now downloads AppleFrames402.zip (47.7 MB). It is AppleFrames401 plus 16 iPhone 18 Pro bezels, four screen masks, and Apple's Design Resources License. Updating the CLI alone does not download the new artwork; run `frames setup` once.
+- **Older packs still work.** With AppleFrames401 or the Duo pack, these sizes keep using the 17 Pro frames. `frames doctor` notes when a pack predates iPhone 18 Pro, `frames list` shows the defaults your pack actually provides, and `frames info` lists only installed variants.
+
+The published ZIP is 47,655,392 bytes with SHA-256 `57491bddd7956b6aeb53dde3e87172e32e026ca76334e86672f83b70e80438f4`.
+
 ## 1.4.1 — 2026-09-10
 
 Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.4.1 adds **experimental iPhone Duo support** using Apple's official artwork and published display resolutions. Developers can test both displays in both orientations, choose either finish, and show the outer screen alone or beside the phone's back.
