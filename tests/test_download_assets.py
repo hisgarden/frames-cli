@@ -585,6 +585,28 @@ class VideoHelperTests(unittest.TestCase):
         self.assertEqual(layout[1]["y"], height - layout[1]["height"])
         self.assertEqual(width, layout[0]["width"] + 60 + layout[1]["width"])
 
+    def test_merge_layout_scales_device_bodies_from_frame_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            phone, tablet = root / "phone.png", root / "tablet.png"
+            image = Image.new("RGBA", (10, 16))
+            image.paste((0, 0, 0, 255), (2, 2, 8, 14))
+            image.save(phone)
+            image = Image.new("RGBA", (12, 20))
+            image.paste((0, 0, 0, 255), (1, 1, 11, 19))
+            image.save(tablet)
+            items = [
+                {"frame_meta": {"frame_path": str(phone), "frame_width": 10, "frame_height": 16, "physicalHeight": 6}},
+                {"frame_meta": {"frame_path": str(tablet), "frame_width": 12, "frame_height": 20, "physicalHeight": 18}},
+            ]
+            _, height, layout = frames.compute_video_merge_layout(items, spacing=0)
+
+        self.assertEqual(layout[0]["scale_factor"], 0.5)
+        self.assertEqual((layout[0]["width"], layout[0]["height"]), (5, 8))
+        # Device bottoms line up: phone body ends at y + 7, tablet body at 19.
+        self.assertEqual(layout[0]["y"] + 7, layout[1]["y"] + 19)
+        self.assertEqual(height, 20)
+
     def test_counterclockwise_rotation_swaps_dimensions_and_preserves_source(self):
         meta = {
             "width": 1640,

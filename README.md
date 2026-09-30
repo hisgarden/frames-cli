@@ -90,31 +90,32 @@ Frames **1.5.0 or later** frames iPhone 18 Pro and 18 Pro Max screenshots and re
 | 1320 × 2868 | iPhone 18 Pro Max Portrait |
 | 2868 × 1320 | iPhone 18 Pro Max Landscape |
 
-The artwork ships in the standard asset pack. After updating the CLI, run `frames setup` once to download it; until then, `frames doctor` notes that your pack predates iPhone 18 Pro, and these sizes keep using the 17 Pro frames. The 17 Pro frames remain available with `--device`:
+The artwork ships in the standard asset pack, along with iPhone Duo. After updating the CLI, run `frames setup` once to download it; until then, `frames doctor` notes that your pack predates these devices, and these sizes keep using the 17 Pro frames. The 17 Pro frames remain available with `--device`:
 
 ```bash
 frames -d "iPhone 17 Pro Portrait" screenshot.png
 frames -d "iPhone 17 Pro Max Landscape" -c "Deep Blue" screenshot.png
 ```
 
-### Experimental iPhone Duo support
+### iPhone Duo
 
-Frames **1.4.1 or later** supports Duo with a separate, opt-in asset pack. It includes both displays in portrait and landscape, Night Sky and Star White finishes, and a view showing the phone's back beside its outer screen. Updating the CLI alone does not install the pack, and normal `frames setup` downloads the standard pack instead. The Duo pack predates iPhone 18 Pro, so while it is selected, 17 Pro sizes use the 17 Pro frames.
+Frames **1.5.0 or later** frames iPhone Duo screenshots and recordings with Apple's official bezels in Night Sky and Star White. The artwork ships in the same standard asset pack as iPhone 18 Pro. Both displays work in portrait and landscape:
 
-Download [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB) and unzip it. The enclosed `Frames-Duo-Experimental` folder contains the existing frames too. Select that folder for an individual command:
+| Input width × height | Automatic frame |
+| --- | --- |
+| 1398 × 2034 | iPhone Duo Outer Portrait |
+| 2034 × 1398 | iPhone Duo Outer Landscape |
+| 2007 × 2853 | iPhone Duo Inner Portrait |
+| 2853 × 2007 | iPhone Duo Inner Landscape |
+
+These are the sizes the Xcode 27.1 iPhone Duo simulator captures. Mockups at Apple's announced inner resolution, 1878 × 2670 or 2670 × 1878, are also detected and scaled to the same frames. A second outer view shows the back of the phone beside its outer screen; it uses the same 1398 × 2034 screenshot, so select it by name:
 
 ```bash
-frames --assets /path/to/Frames-Duo-Experimental -c "Star White" duo.png
-frames --assets /path/to/Frames-Duo-Experimental --json info duo.png
-frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Portrait" outer-portrait.png
-frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Open" outer-portrait.png
+frames -c "Star White" duo.png
+frames -d "iPhone Duo Outer Open" outer-portrait.png
 ```
 
-The two outer portrait commands use the same **1398 × 2034** screenshot. `Outer Portrait` shows only the screen; `Outer Open` adds the back of the phone beside it. Without `--device`, the single-screen view is selected automatically. The option also works with `frames video`.
-
-To save the pack as your default, run `frames setup /path/to/Frames-Duo-Experimental` once. Detection requires the exact native width **and** height: outer portrait **1398 × 2034**, outer landscape **2034 × 1398**, inner portrait **2007 × 2853**, or inner landscape **2853 × 2007**. The inner sizes are what the Xcode 27.1 iPhone Duo simulator captures; mockups at the announced **1878 × 2670** and **2670 × 1878** are still detected and scaled. These mappings are experimental until real Duo hardware can be checked.
-
-See the [complete Duo setup and usage guide](docs/iphone-duo-experimental.md) for copyable download commands, verification, both selection methods, colors, videos, restoring your previous pack, and asset provenance.
+See the [iPhone Duo guide](docs/iphone-duo.md) for capturing screenshots in the simulator, videos, merging, and known limitations.
 
 ---
 
@@ -352,7 +353,7 @@ Rendered-video JSON includes `output_codec` (`h264`, `hevc`, `prores`, or `hevc-
 
 Merge all framed images into a single horizontal strip. Default spacing between frames is 60px.
 
-When merging **different devices**, frames are automatically scaled to reflect real-world physical proportions and bottom-aligned. An iPhone next to an iPad will be proportionally shorter, just like in real life. Same-device merges are unaffected.
+When merging **different devices**, frames are automatically scaled to reflect real-world physical proportions and bottom-aligned. Frames measures each device by its visible body, not the transparent padding around it, so the proportions match Apple's published dimensions. An iPhone next to an iPad will be proportionally shorter, just like in real life. Same-device merges are unaffected.
 
 ```bash
 frames -m screenshot1.png screenshot2.png screenshot3.png
@@ -612,7 +613,7 @@ frames -f ~/screenshots/*.png
 
 | Category | Devices | Notes |
 |----------|---------|-------|
-| iPhone Duo (experimental pack) | Inner and outer displays | Portrait + landscape; optional rear view |
+| iPhone Duo | Inner and outer displays | Portrait + landscape; 2 colors (Night Sky default); optional rear view |
 | iPhone 18 | 18 Pro, 18 Pro Max | Portrait + landscape; 4 colors (Burgundy default); default for 17 Pro sizes |
 | iPhone 17 | 17, 17 Pro, 17 Pro Max | Portrait + landscape |
 | iPhone Air | Air | Portrait + landscape |
@@ -639,7 +640,7 @@ python3 -m unittest discover -s tests -v
 
 The video rendering tests also need `ffmpeg` and `ffprobe`; they are skipped when either tool is missing. Tests create temporary inputs and assets. The optional native HEVC-alpha test also requires macOS, a working `swiftc`, and ffmpeg HEVC alpha support. It skips when prerequisites are unavailable; otherwise, failures fail the suite. It decodes exports through AVFoundation to check transparency, masks, geometry, and opaque backgrounds.
 
-The iPhone 18 Pro tests cover the new shared-size defaults, the fallback to 17 Pro with older packs, explicit 17 Pro selection, `list`, and the `doctor` note. The Duo tests cover device listing, exact resolution matching, both finishes, the manual rear view, explicit image/video resize dimensions, enclosed screen masks, and metadata removal. They use small synthetic assets; full artwork verification is described in the [Duo guide](docs/iphone-duo-experimental.md).
+The iPhone 18 Pro tests cover the new shared-size defaults, the fallback to 17 Pro with older packs, explicit 17 Pro selection, `list`, and the `doctor` note. The Duo tests cover device listing, exact resolution matching at simulator and announced sizes, both finishes, the manual rear view, explicit image/video resize dimensions, enclosed screen masks, metadata removal, and the `doctor` note. They use small synthetic assets; the [Duo guide](docs/iphone-duo.md) describes how the pack is built and checked.
 
 ---
 

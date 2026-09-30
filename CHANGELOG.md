@@ -2,17 +2,17 @@
 
 ## 1.5.0 — 2026-09-30
 
-Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.5.0 adds **iPhone 18 Pro and iPhone 18 Pro Max** using Apple's official artwork and makes them the default for their screen sizes. **Experimental iPhone Duo support** from 1.4.1 continues with its separate pack and now recognizes inner-display screenshots from the Xcode 27.1 simulator.
+Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.5.0 adds **iPhone 18 Pro, iPhone 18 Pro Max, and iPhone Duo** using Apple's official artwork. The 18 Pro models become the default for their screen sizes, Duo joins the standard asset pack, and merged frames now match real-world proportions more precisely.
 
 ### Update the CLI and the asset pack
 
-iPhone 18 Pro needs **Frames 1.5.0 or later plus the new standard asset pack**. Updating the CLI alone does not download the new artwork.
+The new devices need **Frames 1.5.0 or later plus the new standard asset pack**. Updating the CLI alone does not download the new artwork.
 
 1. Update Frames using your existing [installation method](README.md#installation), then check that `frames --version` prints `frames v1.5.0`.
-2. Run `frames setup` and accept the download. It now fetches [AppleFrames402.zip](https://cdn.macstories.net/images/uploads/2026/09/30/appleframes402-1790751322479-4eaf3f6cee.zip) (47.7 MB): the previous pack plus 16 iPhone 18 Pro bezels, four screen masks, and Apple's Design Resources License.
-3. Run `frames doctor`. If it says your pack predates iPhone 18 Pro, the CLI is still reading an older folder; run `frames setup` again or point it at the new one.
+2. Run `frames setup` and accept the download. It fetches [AppleFrames402.zip](https://cdn.macstories.net/images/uploads/2026/09/30/appleframes402-1790756136687-572a1ccddd.zip) (60.8 MB): the previous pack plus 16 iPhone 18 Pro bezels, 10 iPhone Duo bezels, nine screen masks, and Apple's Design Resources License.
+3. Run `frames doctor`. If it says your pack predates iPhone 18 Pro or iPhone Duo, the CLI is still reading an older folder; run `frames setup` again or point it at the new one.
 
-The ZIP is 47,655,392 bytes with SHA-256 `57491bddd7956b6aeb53dde3e87172e32e026ca76334e86672f83b70e80438f4`.
+The ZIP is 60,821,581 bytes with SHA-256 `5fecdd29acf4c3c6215a05629a07e2c5b30439597933859a7a71e153adad8fd3`.
 
 ### iPhone 18 Pro is the new default
 
@@ -33,15 +33,30 @@ frames video recording.mp4
 frames -d "iPhone 17 Pro Portrait" screenshot.png
 ```
 
-With an older pack (AppleFrames401 or the Duo pack), these sizes keep using the 17 Pro frames. `frames list` shows the defaults your installed pack provides, and `frames info` lists only the variants it can render.
+With an older pack, these sizes keep using the 17 Pro frames. `frames list` shows the defaults your installed pack provides, and `frames info` lists only the variants it can render.
 
-### Experimental iPhone Duo support
+### iPhone Duo
 
-Duo support is still experimental. It uses a separate, opt-in pack, [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB), which you select with `--assets` or `frames setup PATH`. It covers both displays in portrait and landscape, Night Sky and Star White finishes, and a manual view showing the phone's back beside the outer screen. See the [Duo guide](docs/iphone-duo-experimental.md) for setup and verification.
+Both displays work in portrait and landscape, in **Night Sky** (the default) and **Star White**, for images and videos:
 
-Screenshots from the Xcode 27.1 iPhone Duo simulator now frame directly. The simulator captures the inner display at **2007 × 2853** in portrait and **2853 × 2007** in landscape, not the announced 1878 × 2670, so 1.4.1 reported an unknown device. These sizes match the screen opening in Apple's artwork exactly, so they frame at 1:1. Mockups at the announced size are still detected and scaled. The same Duo pack works; there is nothing new to download. Inner-display simulator recordings are not detected automatically yet; select the frame with `--device`.
+| Input width × height | Automatic frame |
+| --- | --- |
+| 1398 × 2034 | iPhone Duo Outer Portrait |
+| 2034 × 1398 | iPhone Duo Outer Landscape |
+| 2007 × 2853 | iPhone Duo Inner Portrait |
+| 2853 × 2007 | iPhone Duo Inner Landscape |
 
-The Duo pack predates iPhone 18 Pro, so while it is selected, 17 Pro screen sizes use the 17 Pro frames. Normal `frames setup` downloads the standard pack, not Duo.
+These are the sizes the Xcode 27.1 iPhone Duo simulator captures, and they match the screen openings in Apple's artwork exactly. Mockups at Apple's announced inner resolution, 1878 × 2670, are still detected and scaled. A manual view shows the phone's back beside the outer screen:
+
+```bash
+frames -d "iPhone Duo Outer Open" outer-portrait.png
+```
+
+Duo is no longer a separate, experimental pack. If you selected `Frames-Duo-Experimental` from 1.4.1, run `frames setup` to switch to the standard pack; JSON output no longer includes an `experimental` field. Simulator recordings of the inner display aren't detected automatically yet; select their frame with `--device`. See the [iPhone Duo guide](docs/iphone-duo.md) for capturing screenshots in the simulator and known limitations.
+
+### More accurate proportional merges
+
+Merged images and videos scale each device to its real-world size. Frames now measures each device by its visible body instead of its frame image, because Apple pads each image differently, and it aligns the bottoms of the devices themselves. Previously, an iPhone Duo next to an iPhone 18 Pro came out about 1% too small and 10 pixels out of alignment.
 
 ## 1.4.1 — 2026-09-10
 
@@ -65,7 +80,7 @@ frames --assets /path/to/Frames-Duo-Experimental duo.png
 frames setup /path/to/Frames-Duo-Experimental
 ```
 
-The path must identify the **extracted folder**, not the ZIP or CDN URL. The pack includes all existing frames and has 519 PNGs. Its asset format version remains 4. See the [complete Duo guide](docs/iphone-duo-experimental.md) for copyable download commands, checksums, setup verification, and restoring a previous pack.
+The path must identify the **extracted folder**, not the ZIP or CDN URL. The pack includes all existing frames and has 519 PNGs. Its asset format version remains 4. See the [complete Duo guide](https://github.com/viticci/frames-cli/blob/1.4.1/docs/iphone-duo-experimental.md) for copyable download commands, checksums, setup verification, and restoring a previous pack.
 
 ### Choose the outer-screen view
 

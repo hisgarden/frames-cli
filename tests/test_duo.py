@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from argparse import Namespace
+from unittest import mock
 
 from PIL import Image, ImageDraw, PngImagePlugin
 
@@ -38,7 +39,7 @@ class DuoTests(unittest.TestCase):
             listing = output.getvalue()
             for name in (view["name"] for view in builder.VIEWS):
                 self.assertIn(name, listing)
-            self.assertIn("experimental", listing)
+            self.assertIn("Manual frames", listing)
             self.assertIn("select with --device", listing)
             catalog_path.write_text('{"variants": {}}', encoding="utf-8")
             output = io.StringIO()
@@ -51,14 +52,15 @@ class DuoTests(unittest.TestCase):
         expected = {
             (1398, 2034): "iPhone Duo Outer Portrait",
             (2034, 1398): "iPhone Duo Outer Landscape",
+            (2007, 2853): "iPhone Duo Inner Portrait",
+            (2853, 2007): "iPhone Duo Inner Landscape",
             (1878, 2670): "iPhone Duo Inner Portrait",
             (2670, 1878): "iPhone Duo Inner Landscape",
         }
         for (width, height), name in expected.items():
-            with self.subTest(name=name):
-                entry, detected = frames.detect_device_size(width, height, catalog)
+            with self.subTest(name=name, size=(width, height)):
+                _, detected = frames.detect_device_size(width, height, catalog)
                 self.assertEqual(detected, name)
-                self.assertTrue(entry["experimental"])
                 self.assertEqual(frames.detect_device_size(width, height + 1, catalog), (None, None))
                 self.assertEqual(frames.get_color(name, "star white", strict=True), "Star White")
                 self.assertEqual(frames.get_color(name, None), "Night Sky")
@@ -75,16 +77,14 @@ class DuoTests(unittest.TestCase):
             source = root / "native.png"
             Image.new("RGB", (8, 6), "red").save(source)
             entry = {"name": name, "x": "2", "y": "2", "colors": "yes", "mask": "yes",
-                     "resizeWidth": "11", "resizeHeight": "7", "experimental": True}
+                     "resizeWidth": "11", "resizeHeight": "7"}
             catalog = {"8": {"overlap": {"6": entry}}}
             image, info = frames.frame_screenshot(source, root, catalog)
             self.assertEqual(image.getchannel("A").getbbox(), (2, 2, 13, 9))
             self.assertEqual(image.getpixel((12, 8)), (255, 0, 0, 255))
-            self.assertTrue(info["experimental"])
             self.assertTrue(info["resized"])
             metadata = frames.resolve_frame_metadata(8, 6, root, catalog)
             self.assertEqual((metadata["resize_width"], metadata["resize_height"]), (11, 7))
-            self.assertTrue(metadata["experimental"])
             entry.pop("resizeHeight")
             legacy = frames.resolve_frame_metadata(8, 6, root, catalog)
             self.assertEqual(legacy["resize_height"], 8)
@@ -92,8 +92,7 @@ class DuoTests(unittest.TestCase):
     def test_simulator_inner_captures_frame_without_scaling(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "NewFrames.json").write_text(json.dumps(builder.catalog_entries()), encoding="utf-8")
-            catalog = frames.load_json(root)
+            catalog = builder.catalog_entries()
             captures = {
                 (2007, 2853): ("iPhone Duo Inner Portrait", (1878, 2670)),
                 (2853, 2007): ("iPhone Duo Inner Landscape", (2670, 1878)),
@@ -116,6 +115,21 @@ class DuoTests(unittest.TestCase):
             image, info = frames.frame_screenshot(source, root, {"11": {"overlap": {"7": entry}}})
             self.assertFalse(info["resized"])
             self.assertEqual(image.getchannel("A").getbbox(), (2, 2, 13, 9))
+
+    def test_doctor_asks_to_update_packs_without_duo(self):
+        for include_duo in (True, False):
+            with self.subTest(include_duo=include_duo), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                catalog = builder.catalog_entries() if include_duo else {"variants": {}}
+                catalog["variants"]["iPhone 18 Pro Portrait"] = {"name": "iPhone 18 Pro Portrait", "x": "0", "y": "0"}
+                (root / "NewFrames.json").write_text(json.dumps(catalog), encoding="utf-8")
+                (root / "version.txt").write_text("4", encoding="utf-8")
+                output = io.StringIO()
+                with mock.patch.object(frames, "CONFIG_FILE", root / "missing.json"), \
+                        contextlib.redirect_stdout(output):
+                    frames.cmd_doctor(Namespace(assets=str(root), json=True))
+                notes = " ".join(json.loads(output.getvalue())["notes"])
+                self.assertEqual("predates iPhone Duo" in notes, not include_duo)
 
     def test_mask_uses_enclosed_opening_and_preserves_partial_bezel_alpha(self):
         image = Image.new("RGBA", (16, 12))

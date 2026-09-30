@@ -57,6 +57,21 @@ class ImageTests(unittest.TestCase):
         self.assertEqual(merged.crop((0, 12, 4, 18)).tobytes(), phone.resize((4, 6), Image.LANCZOS).tobytes())
         self.assertEqual(merged.crop((5, 0, 15, 18)).tobytes(), tablet.tobytes())
 
+    def test_physical_merge_measures_devices_not_canvas_padding(self):
+        phone = Image.new("RGBA", (10, 16))
+        phone.paste((200, 0, 0, 255), (2, 2, 8, 14))  # 12px body for 6mm
+        tablet = Image.new("RGBA", (12, 20))
+        tablet.paste((0, 0, 200, 255), (1, 1, 11, 19))  # 18px body for 18mm
+
+        merged = frames.merge_images([phone, tablet], spacing=0, physical_heights=[6, 18])
+
+        opaque = merged.getchannel("A").point(lambda alpha: 255 if alpha > 127 else 0)
+        left = opaque.crop((0, 0, 5, merged.height)).getbbox()
+        right = opaque.crop((5, 0, merged.width, merged.height)).getbbox()
+        self.assertEqual(right[3] - right[1], 18)
+        self.assertLessEqual(abs((left[3] - left[1]) - 6), 1)
+        self.assertLessEqual(abs(left[3] - right[3]), 1)
+
     def test_cached_assets_remain_unchanged_across_screenshots(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

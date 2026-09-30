@@ -39,10 +39,11 @@ APP_NAME = "frames"
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "frames"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-ASSETS_URL = "https://cdn.macstories.net/images/uploads/2026/09/30/appleframes402-1790751322479-4eaf3f6cee.zip"
+ASSETS_URL = "https://cdn.macstories.net/images/uploads/2026/09/30/appleframes402-1790756136687-572a1ccddd.zip"
 ASSETS_MIN_VERSION = 4
-# Newest frame in the standard pack; doctor suggests updating packs without it.
-LATEST_PACK_FRAME = "iPhone 18 Pro Portrait"
+# Newest devices in the standard pack, each with a frame that proves it is
+# installed; doctor suggests updating packs that lack any of them.
+LATEST_PACK_FRAMES = {"iPhone 18 Pro": "iPhone 18 Pro Portrait", "iPhone Duo": "iPhone Duo Outer Open"}
 LARGE_IMAGE_WARN_DIMENSION = 20000
 LARGE_IMAGE_MAX_DIMENSION = 50000
 VALID_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".heic", ".tiff", ".webp"}
@@ -534,7 +535,6 @@ def show_splash():
     for command, description in examples:
         print(f"    {C.cyan('frames')} {command:<{width}}  {C.dim(description)}")
     print(f"  More options: {C.cyan('frames frame --help')} | {C.cyan('frames video --help')}")
-    print(f"  Experimental Duo: select its pack with {C.cyan('--assets PATH')}. See README.")
     print()
 
     # Show asset status
@@ -624,14 +624,6 @@ MISSING_DEVICE_ENTRIES = {
     },
 }
 
-# The experimental Duo pack keys its inner frames on the announced 1878x2670
-# panel, but the Xcode 27.1 simulator captures the inner display at 2007x2853,
-# the exact size of the artwork's screen opening. Detect both sizes.
-DUO_INNER_CAPTURE_SIZES = {
-    ("1878", "2670"): ("2007", "2853"),
-    ("2670", "1878"): ("2853", "2007"),
-}
-
 # ── Core Engine ──────────────────────────────────────────────────────────────
 
 def load_json(assets_dir):
@@ -648,12 +640,6 @@ def load_json(assets_dir):
         sys.exit(1)
     for key, entry in MISSING_DEVICE_ENTRIES.items():
         device_dict.setdefault(key, entry)
-    for (width, height), (capture_width, capture_height) in DUO_INNER_CAPTURE_SIZES.items():
-        entry = device_dict.get(width, {}).get("overlap", {}).get(height)
-        if entry:
-            # Share the entry so --device still scales announced-size mockups.
-            overlap = device_dict.setdefault(capture_width, {"overlap": {}}).get("overlap", {})
-            overlap.setdefault(capture_height, entry)
     return device_dict
 
 
@@ -866,12 +852,29 @@ def composite(screenshot, frame, x, y):
     canvas.paste(screenshot, (x, y))
     return Image.alpha_composite(canvas, frame)
 
+def _body_rows(img):
+    """Top and bottom rows of an image's visible pixels (the device, not its padding)."""
+    box = img.getchannel("A").getbbox() if img.mode == "RGBA" else None
+    return (box[1], box[3]) if box else (0, img.height)
+
+
+def physical_scale_factors(bodies, physical_heights):
+    """Scale factors that give every device the same pixels per millimeter.
+
+    Each body is the (top, bottom) rows of the visible device. Apple pads frame
+    canvases differently, so canvas heights would skew real-world proportions.
+    The coarsest device keeps its size and the others scale down, never up."""
+    px_per_mm = [(bottom - top) / ph for (top, bottom), ph in zip(bodies, physical_heights)]
+    ref_ppm = min(px_per_mm)
+    return [ref_ppm / ppm for ppm in px_per_mm]
+
+
 def merge_images(images, spacing=60, physical_heights=None):
     """Merge multiple images horizontally with spacing.
 
-    When physical_heights is provided and values differ, images are scaled
-    proportionally (tallest = 1.0) and bottom-aligned. Otherwise, original
-    center-aligned behavior is preserved."""
+    When physical_heights is provided and values differ, devices are scaled to
+    their real-world proportions and bottom-aligned. Otherwise, images keep
+    their size and are center-aligned."""
     if len(images) == 1:
         return images[0]
 
@@ -882,33 +885,31 @@ def merge_images(images, spacing=60, physical_heights=None):
     )
 
     if do_scale:
-        # Normalize all frames to the same pixels-per-mm ratio.
-        # The device with the lowest px/mm (coarsest frame) keeps native size;
-        # everything else scales down. This avoids upscaling artifacts.
-        px_per_mm = [img.height / ph for img, ph in zip(images, physical_heights)]
-        ref_ppm = min(px_per_mm)
-        scaled = []
-        for img, ph in zip(images, physical_heights):
-            target_h = round(ph * ref_ppm)
-            scale = target_h / img.height
+        bodies = [_body_rows(img) for img in images]
+        scaled, body_bottoms = [], []
+        for img, (_, bottom), scale in zip(images, bodies, physical_scale_factors(bodies, physical_heights)):
             if scale < 0.999:
-                new_w = max(1, round(img.width * scale))
-                new_h = max(1, target_h)
-                scaled.append(img.resize((new_w, new_h), Image.LANCZOS))
+                width = max(1, round(img.width * scale))
+                height = max(1, round(img.height * scale))
+                scale = height / img.height  # The rounded, effective scale.
+                img = img.resize((width, height), Image.LANCZOS)
             else:
-                scaled.append(img)
+                scale = 1.0
+            scaled.append(img)
+            body_bottoms.append(round(bottom * scale))
         images = scaled
+        # Align the devices themselves, not their differently padded canvases.
+        offsets = [max(body_bottoms) - bottom for bottom in body_bottoms]
+    else:
+        tallest = max(img.height for img in images)
+        offsets = [(tallest - img.height) // 2 for img in images]
 
     total_width = sum(img.width for img in images) + spacing * (len(images) - 1)
-    max_height = max(img.height for img in images)
+    max_height = max(offset + img.height for offset, img in zip(offsets, images))
 
     merged = Image.new("RGBA", (total_width, max_height), (0, 0, 0, 0))
     x_offset = 0
-    for img in images:
-        if do_scale:
-            y_offset = max_height - img.height  # Bottom-align
-        else:
-            y_offset = (max_height - img.height) // 2  # Center-align
+    for img, y_offset in zip(images, offsets):
         # Inputs occupy separate regions. Copy their alpha instead of applying it twice.
         merged.paste(img, (x_offset, y_offset))
         x_offset += img.width + spacing
@@ -1039,7 +1040,6 @@ def frame_screenshot(
         "mask_missing": mask_missing,
         "physicalHeight": float(entry.get("physicalHeight", 0)),
         "is_variant": is_variant,
-        "experimental": bool(entry.get("experimental", False)),
     }
 
     return result, info
@@ -1486,7 +1486,6 @@ def _video_info_for_path(
         "mask_missing": frame_meta["mask_missing"],
         "physicalHeight": frame_meta["physicalHeight"],
         "is_variant": frame_meta["is_variant"],
-        "experimental": bool(frame_meta.get("experimental", False)),
         "rotation": rotation,
         "source_width": source_meta["width"],
         "source_height": source_meta["height"],
@@ -1545,7 +1544,6 @@ def resolve_frame_metadata(
         "device": model_name,
         "primary_match": primary_name,
         "is_variant": is_variant,
-        "experimental": bool(entry.get("experimental", False)),
         "entry": entry,
         "x": int(entry["x"]),
         "y": int(entry["y"]),
@@ -1916,29 +1914,44 @@ def compute_video_merge_layout(items, spacing, no_scale=False):
         and len({frame["physicalHeight"] for frame in frames}) > 1
     )
     if do_scale:
-        px_per_mm = [frame["height"] / frame["physicalHeight"] for frame in frames]
-        ref_ppm = min(px_per_mm)
-        for frame in frames:
-            target_h = round(frame["physicalHeight"] * ref_ppm)
-            scale = target_h / frame["height"]
-            frame["scale_factor"] = round(scale, 4)
+        bodies = [_frame_body_rows(item["frame_meta"], frame["height"]) for item, frame in zip(items, frames)]
+        factors = physical_scale_factors(bodies, [frame["physicalHeight"] for frame in frames])
+        for frame, (_, bottom), scale in zip(frames, bodies, factors):
             if scale < 0.999:
+                height = max(1, round(frame["height"] * scale))
                 frame["width"] = max(1, round(frame["width"] * scale))
-                frame["height"] = max(1, target_h)
+                scale = height / frame["height"]  # Report the rounded, effective scale.
+                frame["height"] = height
             else:
-                frame["scale_factor"] = 1.0
+                scale = 1.0
+            frame["scale_factor"] = round(scale, 4)
+            frame["body_bottom"] = round(bottom * scale)
     else:
         for frame in frames:
             frame["scale_factor"] = 1.0
+            frame["body_bottom"] = frame["height"]
 
+    # Bottom-align the devices themselves, not their differently padded canvases.
+    body_line = max(frame["body_bottom"] for frame in frames)
     total_width = sum(frame["width"] for frame in frames) + spacing * (len(frames) - 1)
-    max_height = max(frame["height"] for frame in frames)
     x = 0
     for frame in frames:
         frame["x"] = x
-        frame["y"] = max_height - frame["height"]
+        frame["y"] = body_line - frame.pop("body_bottom")
         x += frame["width"] + spacing
+    max_height = max(frame["y"] + frame["height"] for frame in frames)
     return total_width, max_height, frames
+
+
+def _frame_body_rows(frame_meta, height):
+    """Top and bottom rows of the device in a video's frame asset."""
+    frame_path = frame_meta.get("frame_path")
+    if not frame_path:
+        return (0, height)
+    frame = _load_rgba_asset_cached(str(frame_path))
+    if frame_meta.get("rotate_frame"):
+        frame = frame.transpose(Image.ROTATE_90)
+    return _body_rows(frame)
 
 
 def render_merged_video(items, out_path, args, progress_label=None):
@@ -2146,7 +2159,6 @@ def cmd_video(args):
                 "masked": frame_meta["has_mask"] and not frame_meta["mask_missing"],
                 "mask_missing": frame_meta["mask_missing"],
                 "physicalHeight": frame_meta["physicalHeight"],
-                "experimental": bool(frame_meta.get("experimental", False)),
                 "rotation": _video_rotation(args),
                 "source_dimensions": video_meta["source_dimensions"],
                 **_video_output_dimension_info(frame_meta["frame_width"], frame_meta["frame_height"], args),
@@ -2478,8 +2490,6 @@ def cmd_list(args):
                             flags.append(f"{len(colors)} colors")
                     if resize:
                         flags.append("scaled")
-                    if sub.get("experimental"):
-                        flags.append("experimental")
                     flag_str = C.dim(f" ({', '.join(flags)})") if flags else ""
                     categories[cat].append(f"    {C.cyan(f'{key:>5}px')} → {name}{flag_str}")
                     break
@@ -2491,10 +2501,11 @@ def cmd_list(args):
                 print(e)
             print()
 
-    manual = [name for name, entry in device_dict.get("variants", {}).items()
-              if entry.get("experimental")]
+    # Variants no size selects automatically, such as the iPhone Duo rear view.
+    automatic = {name for names in FRAME_VARIANTS.values() for name in names}
+    manual = [name for name in device_dict.get("variants", {}) if name not in automatic]
     if manual:
-        print(f"  {C.bold('Experimental manual frames')} {C.dim('(select with --device)')}")
+        print(f"  {C.bold('Manual frames')} {C.dim('(select with --device)')}")
         for name in manual:
             print(f"    {name}")
         print()
@@ -2806,7 +2817,6 @@ def _info_for_image(p, device_dict):
         "resize_height": entry.get("resizeHeight") if scaled else None,
         "variants": variants,
         "is_variant": resolved_name != model_name,
-        "experimental": bool(entry.get("experimental", False)),
     })
     return info
 
@@ -3044,9 +3054,10 @@ def cmd_doctor(args):
 
     if assets_dir.exists() and ok and png_count == 0:
         issues.append(f"No frame PNGs were found in {assets_dir}.")
-    if ok and not _pack_has_frame(json_path, LATEST_PACK_FRAME):
+    missing = [device for device, frame in LATEST_PACK_FRAMES.items() if not _pack_has_frame(json_path, frame)]
+    if ok and missing:
         notes.append(
-            f"This asset pack predates {LATEST_PACK_FRAME.rsplit(' ', 1)[0]}, so older frames are used. "
+            f"This asset pack predates {' and '.join(missing)}. "
             "Run `frames setup` to download the current standard pack."
         )
 
@@ -3149,7 +3160,7 @@ def build_parser():
         "  frames -m shot1.png shot2.png\n"
         "  frames -m --no-scale shot1.png shot2.png\n"
         "  frames --json video-info recording.mp4\n"
-        "  frames --assets /path/to/Frames-Duo-Experimental duo.png\n"
+        "  frames -d \"iPhone Duo Outer Open\" duo.png\n"
         "  frames video --codec hevc-alpha recording.mp4\n"
         "  frames video --help\n"
         "  frames frame --help\n"
@@ -3165,7 +3176,7 @@ def build_parser():
     p.add_argument("--version", action="version", version=f"frames v{VERSION}")
     p.add_argument("--no-color", action="store_true", help="Disable colored output")
     p.add_argument("--json", action="store_true", help="Output JSON for frame, info, video, video-info, and doctor")
-    p.add_argument("--assets", default=None, help="Assets directory path (also selects an experimental pack)")
+    p.add_argument("--assets", default=None, help="Assets directory path")
     p.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     sub = p.add_subparsers(dest="cmd")

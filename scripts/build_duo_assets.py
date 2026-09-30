@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an opt-in Duo pack from Apple's PNGs and an existing Frames 4 pack.
+"""Add Apple's iPhone Duo PNGs to a standard Frames 4 pack.
 
 Requires Pillow. Apple artwork stays outside the repository. The destination
 must not exist; the original artwork, base pack, and user config are read-only.
@@ -24,17 +24,18 @@ SOURCES = {
     "announcement": "https://www.apple.com/newsroom/2026/09/apple-unveils-iphone-duo/",
     "artwork": "https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-Duo.dmg",
 }
-# Screen sizes come from Apple's specifications; openings were measured in
-# the September 9, 2026 PNGs. Exact checks stop a changed download using stale geometry.
+# Screen sizes are the Xcode 27.1 simulator's captures, which match the openings
+# measured in the September 9, 2026 PNGs. Exact checks stop a changed download
+# using stale geometry. Inner mockups at the announced 1878x2670 still scale in.
 VIEWS = (
     {"name": "iPhone Duo Outer Portrait", "source": "Outer Closed Portrait",
      "screen": (1398, 2034), "canvas": (1574, 2194), "opening": (88, 80, 1486, 2114), "physicalHeight": 117.8},
     {"name": "iPhone Duo Outer Landscape", "source": "Outer Closed Landscape",
      "screen": (2034, 1398), "canvas": (2194, 1574), "opening": (80, 88, 2114, 1486), "physicalHeight": 84.1},
-    {"name": "iPhone Duo Inner Portrait", "source": "Inner Open Portrait",
-     "screen": (1878, 2670), "canvas": (2247, 3093), "opening": (120, 120, 2127, 2973), "physicalHeight": 164.6},
-    {"name": "iPhone Duo Inner Landscape", "source": "Inner Open Landscape",
-     "screen": (2670, 1878), "canvas": (3093, 2247), "opening": (120, 120, 2973, 2127), "physicalHeight": 117.8},
+    {"name": "iPhone Duo Inner Portrait", "source": "Inner Open Portrait", "announced": (1878, 2670),
+     "screen": (2007, 2853), "canvas": (2247, 3093), "opening": (120, 120, 2127, 2973), "physicalHeight": 164.6},
+    {"name": "iPhone Duo Inner Landscape", "source": "Inner Open Landscape", "announced": (2670, 1878),
+     "screen": (2853, 2007), "canvas": (3093, 2247), "opening": (120, 120, 2973, 2127), "physicalHeight": 117.8},
     {"name": "iPhone Duo Outer Open", "source": "Outer Open",
      "screen": (1398, 2034), "canvas": (3056, 2194), "opening": (1570, 80, 2968, 2114), "physicalHeight": 117.8,
      "manual": True},
@@ -50,18 +51,22 @@ def catalog_entries():
     entries = {"variants": {}}
     for view in VIEWS:
         x, y, right, bottom = view["opening"]
+        if (right - x, bottom - y) != view["screen"]:
+            raise ValueError("{} opening does not match its screen size".format(view["name"]))
         entry = {
             "name": view["name"], "x": str(x), "y": str(y),
-            "mask": "yes", "colors": "yes", "experimental": True,
-            "physicalHeight": view["physicalHeight"],
+            "mask": "yes", "colors": "yes", "physicalHeight": view["physicalHeight"],
         }
-        if (right - x, bottom - y) != view["screen"]:
-            entry.update(resizeWidth=str(right - x), resizeHeight=str(bottom - y))
         if view.get("manual"):
             entries["variants"][view["name"]] = entry
-        else:
-            width, height = view["screen"]
-            entries[str(width)] = {"overlap": {str(height): entry}}
+            continue
+        sizes = [view["screen"]]
+        if "announced" in view:
+            # Scale announced-size mockups, including with --device, to the opening.
+            entry.update(resizeWidth=str(right - x), resizeHeight=str(bottom - y))
+            sizes.append(view["announced"])
+        for width, height in sizes:
+            entries.setdefault(str(width), {"overlap": {}})["overlap"][str(height)] = entry
     return entries
 
 
@@ -116,7 +121,7 @@ def write_archive(folder, archive):
         for path in sorted(folder.iterdir()):
             if not path.is_file() or path.name.startswith("."):
                 raise ValueError("Unexpected item in built pack: {}".format(path))
-            member = zipfile.ZipInfo("Frames-Duo-Experimental/" + path.name, (2026, 9, 9, 0, 0, 0))
+            member = zipfile.ZipInfo("Frames/" + path.name, (2026, 9, 30, 0, 0, 0))
             member.compress_type = zipfile.ZIP_DEFLATED
             member.external_attr = 0o100644 << 16
             output.writestr(member, path.read_bytes())
@@ -147,8 +152,8 @@ def build_pack(source, base, destination, archive=None):
             catalog[key] = entry
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    manifest = {"pack": "iPhone Duo Experimental 1", "experimental": True,
-                "sources": SOURCES, "native_device_verified": False,
+    # Build report for the caller; the pack itself ships only frames and catalog.
+    manifest = {"sources": SOURCES,
                 "base_catalog_sha256": sha256((base / "NewFrames.json").read_bytes()),
                 "frames": [], "masks": [], "base_files": {}}
     with tempfile.TemporaryDirectory(prefix="duo-build-", dir=str(destination.parent)) as temporary:
@@ -194,7 +199,6 @@ def build_pack(source, base, destination, archive=None):
         if not license_path.is_file():
             raise ValueError("Keep Apple Design Resources License.rtf beside the source PNG folder")
         shutil.copyfile(license_path, stage / license_path.name)
-        (stage / "Duo-Experimental.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         stage.rename(destination)
     if archive:
         write_archive(destination, archive)
@@ -205,7 +209,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True, help="PNG folder from Apple's iPhone Duo download")
     parser.add_argument("--base-assets", type=Path, required=True, help="Existing Apple Frames 4 assets")
-    parser.add_argument("--output", type=Path, required=True, help="New experimental assets directory")
+    parser.add_argument("--output", type=Path, required=True, help="New assets directory")
     parser.add_argument("--archive", type=Path, help="New ZIP file for distribution")
     args = parser.parse_args()
     try:
