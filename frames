@@ -39,7 +39,7 @@ APP_NAME = "frames"
 HOME = Path.home()
 CONFIG_DIR = HOME / ".config" / "frames"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-ASSETS_URL = "https://cdn.macstories.net/AppleFrames402.zip"
+ASSETS_URL = "https://cdn.macstories.net/images/uploads/2026/09/30/appleframes402-1790751322479-4eaf3f6cee.zip"
 ASSETS_MIN_VERSION = 4
 # Newest frame in the standard pack; doctor suggests updating packs without it.
 LATEST_PACK_FRAME = "iPhone 18 Pro Portrait"

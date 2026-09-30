@@ -205,7 +205,7 @@ Asset resolution order:
 
 Setup behavior:
 
-- `frames setup` downloads the current asset archive from `https://cdn.macstories.net/AppleFrames402.zip`, which adds iPhone 18 Pro and 18 Pro Max. If `frames doctor` notes that the pack predates iPhone 18 Pro, re-run `frames setup` to update it.
+- `frames setup` downloads the current asset archive from `https://cdn.macstories.net/images/uploads/2026/09/30/appleframes402-1790751322479-4eaf3f6cee.zip` (AppleFrames402.zip), which adds iPhone 18 Pro and 18 Pro Max. If `frames doctor` notes that the pack predates iPhone 18 Pro, re-run `frames setup` to update it.
 - `frames setup /path/to/Frames` points the CLI at an existing asset folder instead of downloading.
 - For Duo, `--assets /path/to/Frames-Duo-Experimental` selects the extracted pack for one command; `frames setup /path/to/Frames-Duo-Experimental` saves it as the default. `--assets` and `setup PATH` take a local folder, not a URL or ZIP file. The full pack contains 519 PNGs and retains asset format version 4. Verify the published ZIP has 95,246,128 bytes and SHA-256 `36f64bcddeb97ae0e00e9abb91d79564aeaac284a2b479f6f6f87a5798ec4b83` when validating this specific pack.
 - The asset folder must contain `NewFrames.json`, `version.txt`, and the frame/mask PNGs.
