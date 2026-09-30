@@ -97,6 +97,8 @@ frames -d "iPhone 17 Pro Portrait" screenshot.png
 frames -d "iPhone 17 Pro Max Landscape" -c "Deep Blue" screenshot.png
 ```
 
+![](https://cdn.macstories.net/images/uploads/2026/09/30/iphone-18-pro-and-iphone-duo-macstories-dark-1790757504710-aae99b99cf.png)
+
 ### iPhone Duo
 
 Frames **1.5.0 or later** frames iPhone Duo screenshots and recordings with Apple's official bezels in Night Sky and Star White. The artwork ships in the same standard asset pack as iPhone 18 Pro. Both displays work in portrait and landscape:
