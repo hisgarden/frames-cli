@@ -624,6 +624,14 @@ MISSING_DEVICE_ENTRIES = {
     },
 }
 
+# The experimental Duo pack keys its inner frames on the announced 1878x2670
+# panel, but the Xcode 27.1 simulator captures the inner display at 2007x2853,
+# the exact size of the artwork's screen opening. Detect both sizes.
+DUO_INNER_CAPTURE_SIZES = {
+    ("1878", "2670"): ("2007", "2853"),
+    ("2670", "1878"): ("2853", "2007"),
+}
+
 # ── Core Engine ──────────────────────────────────────────────────────────────
 
 def load_json(assets_dir):
@@ -640,7 +648,25 @@ def load_json(assets_dir):
         sys.exit(1)
     for key, entry in MISSING_DEVICE_ENTRIES.items():
         device_dict.setdefault(key, entry)
+    for (width, height), (capture_width, capture_height) in DUO_INNER_CAPTURE_SIZES.items():
+        entry = device_dict.get(width, {}).get("overlap", {}).get(height)
+        if entry:
+            # Share the entry so --device still scales announced-size mockups.
+            overlap = device_dict.setdefault(capture_width, {"overlap": {}}).get("overlap", {})
+            overlap.setdefault(capture_height, entry)
     return device_dict
+
+
+def resize_target(entry, width, height):
+    """Return the size an input is scaled to, or None when it already fits the opening."""
+    resize_width = entry.get("resizeWidth")
+    if not resize_width:
+        return None
+    resize_width = int(resize_width)
+    resize_height = int(entry.get("resizeHeight", int(height * (resize_width / width))))
+    if (resize_width, resize_height) == (width, height):
+        return None
+    return resize_width, resize_height
 
 def detect_device_size(width, height, device_dict):
     """Detect device from dimensions using width + overlap height check."""
@@ -962,14 +988,11 @@ def frame_screenshot(
     color = get_color(model_name, color_arg, user_defaults=user_defaults, strict=strict_color) if has_colors else None
 
     # 4. Resize for an asset whose opening differs from the native screenshot.
-    resize_width = entry.get("resizeWidth")
-    if resize_width:
-        resize_width = int(resize_width)
-        ratio = resize_width / img.width
-        new_h = int(entry.get("resizeHeight", int(img.height * ratio)))
-        img = img.resize((resize_width, new_h), Image.LANCZOS)
+    target = resize_target(entry, img.width, img.height)
+    if target:
+        img = img.resize(target, Image.LANCZOS)
         if verbose:
-            print(f"  {C.dim('Resized:')} {w}x{h} → {resize_width}x{new_h}", file=sys.stderr)
+            print(f"  {C.dim('Resized:')} {w}x{h} → {target[0]}x{target[1]}", file=sys.stderr)
 
     # 5. Load frame
     frame_path = _frame_asset_path(assets_dir, model_name, color)
@@ -1011,7 +1034,7 @@ def frame_screenshot(
         "color": color,
         "dimensions": f"{w}x{h}",
         "frame_size": f"{result.width}x{result.height}",
-        "resized": bool(resize_width),
+        "resized": bool(target),
         "masked": has_mask and not mask_missing,
         "mask_missing": mask_missing,
         "physicalHeight": float(entry.get("physicalHeight", 0)),
@@ -1516,11 +1539,7 @@ def resolve_frame_metadata(
         with Image.open(mask_path) as mask:
             rotate_mask = asset_is_sideways(model_name, mask.size)
 
-    resize_width = entry.get("resizeWidth")
-    resize_height = None
-    if resize_width:
-        resize_width = int(resize_width)
-        resize_height = int(entry.get("resizeHeight", int(height * (resize_width / width))))
+    resize_width, resize_height = resize_target(entry, width, height) or (None, None)
 
     return {
         "device": model_name,
@@ -2448,7 +2467,7 @@ def cmd_list(args):
         for sub in sub_entries:
             name = sub["name"]
             has_colors = sub.get("colors") == "yes"
-            resize = sub.get("resizeWidth")
+            resize = sub.get("resizeWidth") and str(sub["resizeWidth"]) != key
 
             for cat in categories:
                 if name.startswith(cat) or (cat == "MacBook" and "MacBook" in name) or (cat == "Watch" and "Watch" in name) or (cat == "Studio Display" and "Studio Display" in name):
@@ -2774,6 +2793,7 @@ def _info_for_image(p, device_dict):
 
     colors = FRAME_COLORS.get(resolved_name, [])
     variants = installed_variants(model_name, device_dict)
+    scaled = resize_target(entry, w, h) is not None
 
     info.update({
         "device": resolved_name,
@@ -2782,8 +2802,8 @@ def _info_for_image(p, device_dict):
         "colors": colors,
         "color_count": len(colors),
         "has_mask": entry.get("mask") == "yes",
-        "resize_width": entry.get("resizeWidth"),
-        "resize_height": entry.get("resizeHeight"),
+        "resize_width": entry.get("resizeWidth") if scaled else None,
+        "resize_height": entry.get("resizeHeight") if scaled else None,
         "variants": variants,
         "is_variant": resolved_name != model_name,
         "experimental": bool(entry.get("experimental", False)),

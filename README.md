@@ -112,7 +112,7 @@ frames --assets /path/to/Frames-Duo-Experimental -d "iPhone Duo Outer Open" oute
 
 The two outer portrait commands use the same **1398 × 2034** screenshot. `Outer Portrait` shows only the screen; `Outer Open` adds the back of the phone beside it. Without `--device`, the single-screen view is selected automatically. The option also works with `frames video`.
 
-To save the pack as your default, run `frames setup /path/to/Frames-Duo-Experimental` once. Detection requires the exact native width **and** height: outer portrait **1398 × 2034**, outer landscape **2034 × 1398**, inner portrait **1878 × 2670**, or inner landscape **2670 × 1878**. These mappings are experimental until real Duo screenshots can be checked.
+To save the pack as your default, run `frames setup /path/to/Frames-Duo-Experimental` once. Detection requires the exact native width **and** height: outer portrait **1398 × 2034**, outer landscape **2034 × 1398**, inner portrait **2007 × 2853**, or inner landscape **2853 × 2007**. The inner sizes are what the Xcode 27.1 iPhone Duo simulator captures; mockups at the announced **1878 × 2670** and **2670 × 1878** are still detected and scaled. These mappings are experimental until real Duo hardware can be checked.
 
 See the [complete Duo setup and usage guide](docs/iphone-duo-experimental.md) for copyable download commands, verification, both selection methods, colors, videos, restoring your previous pack, and asset provenance.
 

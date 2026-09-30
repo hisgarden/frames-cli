@@ -75,8 +75,12 @@ Frames detects the display and orientation from both input dimensions. Use scree
 | --- | --- |
 | 1398 × 2034 | iPhone Duo Outer Portrait |
 | 2034 × 1398 | iPhone Duo Outer Landscape |
-| 1878 × 2670 | iPhone Duo Inner Portrait |
-| 2670 × 1878 | iPhone Duo Inner Landscape |
+| 2007 × 2853 | iPhone Duo Inner Portrait |
+| 2853 × 2007 | iPhone Duo Inner Landscape |
+
+These are the sizes the Xcode 27.1 iPhone Duo simulator captures with `xcrun simctl io <device> screenshot --display=<id>`, where display 1 is outer and display 3 is inner. The inner display is off while the simulator is closed, so switch it to Open or Book first. Mockups made at the announced inner resolution, 1878 × 2670 or 2670 × 1878, are still detected and scaled to the same frames.
+
+Apple's outer landscape artwork has the camera at the top left. Screenshots taken in the opposite landscape orientation have the same size, but their camera area is at the bottom right, so the frame's camera covers part of the screenshot.
 
 The single outer screen is selected automatically. To choose between that view and the one showing the back of the phone, use the same **1398 × 2034** outer portrait screenshot with either device name:
 
@@ -131,7 +135,7 @@ Normal video export uses an opaque white canvas and preserves single-video audio
 
 All five views have Night Sky and Star White finishes. The outer open view displays the phone's rear hardware beside the outer screen. It shares the outer portrait resolution, so select it explicitly with `--device "iPhone Duo Outer Open"`.
 
-The inner PNGs are larger than the announced native screen dimensions. The CLI scales the screenshot to the measured opening through `resizeWidth` and `resizeHeight`. Both orientations use transposed dimensions. The bezel pixels themselves remain unchanged. This small scale correction uses the artwork as supplied; it is an experimental mapping, pending actual hardware screenshots.
+The inner openings are larger than the announced native screen dimensions. They match the simulator's 2007 × 2853 inner framebuffer exactly, so simulator captures frame at 1:1. The pack's entries are keyed on the announced size, and the CLI also detects the simulator size with the same entries. Announced-size inputs are scaled to the opening through `resizeWidth` and `resizeHeight`. Both orientations use transposed dimensions. The bezel pixels themselves remain unchanged.
 
 Masks follow the enclosed transparent openings in Apple's artwork. The outer camera stays in the bezel image. The masks also preserve the asymmetric corners of the closed device; they are not generic rounded rectangles. Image/video metadata includes `experimental: true` for these entries.
 
@@ -157,4 +161,4 @@ The published pack uses the CDN download linked above. It does not replace the s
 
 Run `python3 -m unittest discover -s tests -v` for the focused matching, color, resize, mask, and optimization checks, alongside the existing suite. For full artwork verification, build the pack, generate inputs at all four native resolutions, and frame each in both finishes. Also frame the outer portrait input using the manual rear view. Check decoded pixels, camera coverage, corner transparency, and a merged outer-portrait/inner-landscape pair. Those two views have the same stated physical height. Apple's differently padded canvases already align their device bodies when centered, so the image merger preserves their original sizes.
 
-Test an inner portrait and landscape video when changing resize handling, because image and video paths both consume the explicit screen sizes. Keep published-resolution tests separate from actual device evidence. Real screenshots, Display Zoom modes, capture orientation metadata, and UI placement remain unverified until the device is available.
+Test an inner portrait and landscape video when changing resize handling, because image and video paths both consume the explicit screen sizes. Keep published-resolution tests separate from actual device evidence. Simulator screenshots of both displays in both orientations confirm the capture sizes, screen masks, and camera placement for one landscape orientation. Real hardware screenshots, Display Zoom modes, and screen recordings remain unverified. Simulator recordings of the inner display are 2006 × 2852 with rotation metadata, so frame them with `--device`.

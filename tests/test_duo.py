@@ -89,6 +89,34 @@ class DuoTests(unittest.TestCase):
             legacy = frames.resolve_frame_metadata(8, 6, root, catalog)
             self.assertEqual(legacy["resize_height"], 8)
 
+    def test_simulator_inner_captures_frame_without_scaling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "NewFrames.json").write_text(json.dumps(builder.catalog_entries()), encoding="utf-8")
+            catalog = frames.load_json(root)
+            captures = {
+                (2007, 2853): ("iPhone Duo Inner Portrait", (1878, 2670)),
+                (2853, 2007): ("iPhone Duo Inner Landscape", (2670, 1878)),
+            }
+            for (width, height), (name, announced) in captures.items():
+                with self.subTest(name=name):
+                    entry, detected = frames.detect_device_size(width, height, catalog)
+                    self.assertEqual(detected, name)
+                    self.assertIsNone(frames.resize_target(entry, width, height))
+                    forced = frames.resolve_device_entry(*announced, catalog, force_device=name)[0]
+                    self.assertEqual(frames.resize_target(forced, *announced), (width, height))
+
+            name = "iPhone Duo Inner Landscape"
+            Image.new("RGBA", (15, 11)).save(root / (name + " Night Sky.png"))
+            Image.new("L", (11, 7), 255).save(root / (name + "_mask.png"))
+            source = root / "capture.png"
+            Image.new("RGB", (11, 7), "red").save(source)
+            entry = {"name": name, "x": "2", "y": "2", "colors": "yes", "mask": "yes",
+                     "resizeWidth": "11", "resizeHeight": "7"}
+            image, info = frames.frame_screenshot(source, root, {"11": {"overlap": {"7": entry}}})
+            self.assertFalse(info["resized"])
+            self.assertEqual(image.getchannel("A").getbbox(), (2, 2, 13, 9))
+
     def test_mask_uses_enclosed_opening_and_preserves_partial_bezel_alpha(self):
         image = Image.new("RGBA", (16, 12))
         draw = ImageDraw.Draw(image)

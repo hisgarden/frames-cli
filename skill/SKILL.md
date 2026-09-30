@@ -222,10 +222,10 @@ With the experimental Duo pack and updated CLI, the exact image/video dimensions
 | --- | --- |
 | 1398 × 2034 | iPhone Duo Outer Portrait |
 | 2034 × 1398 | iPhone Duo Outer Landscape |
-| 1878 × 2670 | iPhone Duo Inner Portrait |
-| 2670 × 1878 | iPhone Duo Inner Landscape |
+| 2007 × 2853 | iPhone Duo Inner Portrait |
+| 2853 × 2007 | iPhone Duo Inner Landscape |
 
-All four have Night Sky (default) and Star White finishes. `--device "iPhone Duo Outer Open"` frames a 1398 × 2034 input in Apple's rear view, with the display on the right. This view is not selected automatically. The pack handles the inner artwork's larger opening through explicit resize dimensions; do not resize the input yourself or add a notch. The outer camera is already part of Apple's frame. JSON reports `experimental: true`. Generated demos establish geometry at published resolutions, not actual device capture behavior. Preserve this qualification until real Duo screenshots are checked.
+All four have Night Sky (default) and Star White finishes. `--device "iPhone Duo Outer Open"` frames a 1398 × 2034 input in Apple's rear view, with the display on the right. This view is not selected automatically. The inner sizes are the Xcode 27.1 simulator's captures and frame at 1:1; mockups at the announced 1878 × 2670 or 2670 × 1878 are scaled to the same frames. Do not resize the input yourself or add a notch. The outer camera is already part of Apple's frame. Simulator inner recordings (2006 × 2852, rotation-tagged) need `--device`. JSON reports `experimental: true`. Simulator captures are not real hardware evidence; preserve that qualification.
 
 ```bash
 frames --assets /path/to/Frames-Duo-Experimental --json info duo.png

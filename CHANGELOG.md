@@ -2,7 +2,7 @@
 
 ## 1.5.0 — 2026-09-30
 
-Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.5.0 adds **iPhone 18 Pro and iPhone 18 Pro Max** using Apple's official artwork and makes them the default for their screen sizes. **Experimental iPhone Duo support** from 1.4.1 continues with its separate pack.
+Frames adds Apple device bezels to screenshots and screen recordings from the command line. Version 1.5.0 adds **iPhone 18 Pro and iPhone 18 Pro Max** using Apple's official artwork and makes them the default for their screen sizes. **Experimental iPhone Duo support** from 1.4.1 continues with its separate pack and now recognizes inner-display screenshots from the Xcode 27.1 simulator.
 
 ### Update the CLI and the asset pack
 
@@ -37,7 +37,9 @@ With an older pack (AppleFrames401 or the Duo pack), these sizes keep using the 
 
 ### Experimental iPhone Duo support
 
-Duo support is unchanged from 1.4.1 and still experimental. It uses a separate, opt-in pack, [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB), which you select with `--assets` or `frames setup PATH`. It covers both displays in portrait and landscape, Night Sky and Star White finishes, and a manual view showing the phone's back beside the outer screen. See the [Duo guide](docs/iphone-duo-experimental.md) for setup and verification.
+Duo support is still experimental. It uses a separate, opt-in pack, [Frames-Duo-Experimental.zip](https://cdn.macstories.net/images/uploads/2026/09/09/frames-duo-experimental-1788997654596-a33ef863e7.zip) (95.2 MB), which you select with `--assets` or `frames setup PATH`. It covers both displays in portrait and landscape, Night Sky and Star White finishes, and a manual view showing the phone's back beside the outer screen. See the [Duo guide](docs/iphone-duo-experimental.md) for setup and verification.
+
+Screenshots from the Xcode 27.1 iPhone Duo simulator now frame directly. The simulator captures the inner display at **2007 × 2853** in portrait and **2853 × 2007** in landscape, not the announced 1878 × 2670, so 1.4.1 reported an unknown device. These sizes match the screen opening in Apple's artwork exactly, so they frame at 1:1. Mockups at the announced size are still detected and scaled. The same Duo pack works; there is nothing new to download. Inner-display simulator recordings are not detected automatically yet; select the frame with `--device`.
 
 The Duo pack predates iPhone 18 Pro, so while it is selected, 17 Pro screen sizes use the 17 Pro frames. Normal `frames setup` downloads the standard pack, not Duo.
 
